@@ -25,6 +25,18 @@
 #include "trace/barectf_platform_forte.h"
 #include "../fbtests/fbtesterglobalfixture.h"
 
+#include "trace/manualEcet.h"
+
+/**
+ * @brief create a FB network with a E_SWITCH and E_CTU  with some connections 
+ * 
+ * @param paResourceName name for the resource where the network is located
+ * @param paDeviceName name for the device
+ * 
+ * @return the created device que the network of FB in it
+*/
+std::unique_ptr<CDevice> createExampleDevice(CStringDictionary::TStringId paResourceName, CStringDictionary::TStringId paDeviceName = g_nStringIdMyDevice);
+
 /**
  * @brief Get the list of message from a directory containing CTF traces
  * 
@@ -53,75 +65,24 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
 
   BarectfPlatformFORTE::setup(CTF_OUTPUT_DIR);
 
-  // create a FB network with a E_SWITCH and E_CTU 
-  // with some connections and let forte trace its data
   // The inner scope is to make sure the destructors of the resources are 
   // called which flushes the output
   {
-    CTesterDevice device(g_nStringIdMyDevice);
-    auto resource = new EMB_RES(g_nStringIdMyResource, device);
-    device.addFB(resource);
+    auto resourceName = g_nStringIdMyResource;
+    auto device = createExampleDevice(resourceName);
 
-    resource->initialize();
-
-    auto startInstanceName = g_nStringIdSTART;
-    auto counterInstanceName = g_nStringIdCounter;
-    auto switchInstanceName = g_nStringIdSwitch;
-
-    resource->addFB(CTypeLib::createFB(counterInstanceName, g_nStringIdE_CTU, *resource));
-    resource->addFB(CTypeLib::createFB(switchInstanceName, g_nStringIdE_SWITCH, *resource));
-
-    forte::core::SManagementCMD command;
-    command.mCMD = EMGMCommandType::CreateConnection;
-    command.mDestination = CStringDictionary::scmInvalidStringId;
-
-    BOOST_TEST_INFO("Event connection: Start.COLD -> Counter.CU");
-    command.mFirstParam.pushBack(startInstanceName);
-    command.mFirstParam.pushBack(g_nStringIdCOLD);
-    command.mSecondParam.pushBack(counterInstanceName);
-    command.mSecondParam.pushBack(g_nStringIdCU);
-
-    BOOST_CHECK(EMGMResponse::Ready == resource->executeMGMCommand(command));
-
-    BOOST_TEST_INFO("Event connection: Counter.CUO -> Switch.EI");
-    command.mFirstParam.clear();
-    command.mFirstParam.pushBack(counterInstanceName);
-    command.mFirstParam.pushBack(g_nStringIdCUO);
-    command.mSecondParam.clear();
-    command.mSecondParam.pushBack(switchInstanceName);
-    command.mSecondParam.pushBack(g_nStringIdEI);
-    BOOST_CHECK(EMGMResponse::Ready == resource->executeMGMCommand(command));
-
-    BOOST_TEST_INFO("Data connection: Counter.Q -> Switch.G ");
-    command.mFirstParam.clear();
-    command.mFirstParam.pushBack(counterInstanceName);
-    command.mFirstParam.pushBack(g_nStringIdQ);
-    command.mSecondParam.clear();
-    command.mSecondParam.pushBack(switchInstanceName);
-    command.mSecondParam.pushBack(g_nStringIdG);
-    BOOST_CHECK(EMGMResponse::Ready == resource->executeMGMCommand(command));
-
-    BOOST_TEST_INFO(" Data constant value: Counter.PV = 1");
-    command.mFirstParam.clear();
-    command.mFirstParam.pushBack(counterInstanceName);
-    command.mFirstParam.pushBack(g_nStringIdPV);
-    BOOST_CHECK(EMGMResponse::Ready == resource->writeValue(command.mFirstParam, CIEC_STRING(std::string("1")), false));
-
-    BOOST_TEST_INFO("Event connection: Switch.EO1 -> Counter.R ");
-    command.mFirstParam.clear();
-    command.mFirstParam.pushBack(switchInstanceName);
-    command.mFirstParam.pushBack(g_nStringIdEO1);
-    command.mSecondParam.clear();
-    command.mSecondParam.pushBack(counterInstanceName);
-    command.mSecondParam.pushBack(g_nStringIdR);
-    BOOST_CHECK(EMGMResponse::Ready == resource->executeMGMCommand(command));
-
-    device.startDevice();
+    // get the resource instance out of the device
+    forte::core::TNameIdentifier id;
+    id.pushBack(g_nStringIdMyResource);
+    forte::core::TNameIdentifier::CIterator nonConstIterator(id.begin());
+    auto resource = dynamic_cast<CResource*> (device->getContainedFB(nonConstIterator));
+    
+    device->startDevice();
     // wait for all events to be triggered
     while(resource->getResourceEventExecution()->isProcessingEvents()){
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
-    device.changeFBExecutionState(EMGMCommandType::Stop);
+    device->changeFBExecutionState(EMGMCommandType::Stop);
     resource->getResourceEventExecution()->joinEventChainExecutionThread();
   }
 
@@ -132,6 +93,7 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
 
   // timestamp cannot properly be tested, so setting everythin to zero
   expectedMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 65534),0);
+  expectedMessages.emplace_back("externalEventInput", std::make_unique<FBExternalEventPayload>("E_RESTART", "START", 0),0);
   expectedMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 0),0);
   expectedMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_CTU", "Counter", 0),0);
   expectedMessages.emplace_back("instanceData", std::make_unique<FBInstanceDataPayload>("E_CTU", "Counter", std::vector<std::string>{"1"}, std::vector<std::string>{"FALSE", "0"}, std::vector<std::string>{}, std::vector<std::string>{}), 0);
@@ -148,6 +110,7 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
   expectedMessages.emplace_back("outputData", std::make_unique<FBDataPayload>("E_CTU", "Counter", 0, "FALSE"), 0);
   expectedMessages.emplace_back("outputData", std::make_unique<FBDataPayload>("E_CTU", "Counter", 1, "0"), 0);
   expectedMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 65534),0);
+  expectedMessages.emplace_back("externalEventInput", std::make_unique<FBExternalEventPayload>("E_RESTART", "START", 4),0);
   expectedMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 2),0);
 
   auto ctfMessages = getEventMessages(CTF_OUTPUT_DIR);
@@ -164,9 +127,111 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
   // add extra event to check that the comparison fails
   expectedMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 2),0);
   BOOST_CHECK(ctfMessages != expectedMessages);
+
+
+
+    std::vector<EventMessage> externalEvents;
+
+    for(auto& message : ctfMessages){
+      if(message.getEventType() == "externalEventInput"){
+        externalEvents.push_back(std::move(message));
+      }
+    }
+    printPrettyMessages(externalEvents);
+
+
+  {
+    CEventChainExecutionThread::setEcetNameToCreate(std::string("manual"));
+
+    auto resourceName = g_nStringIdMyResource;
+
+    auto device = createExampleDevice(resourceName);
+
+
+    // get the resource instance out of the device
+    forte::core::TNameIdentifier id;
+    id.pushBack(g_nStringIdMyResource);
+    forte::core::TNameIdentifier::CIterator nonConstIterator(id.begin());
+    auto resource = dynamic_cast<CResource*> (device->getContainedFB(nonConstIterator));
+
+    device->startDevice();
+
+    auto manualEcet = dynamic_cast<CManualEventExecutionThread*>(resource->getResourceEventExecution());
+    // wait for all events to be triggered
+    while(0 == manualEcet->advance(1)){
+    }
+    manualEcet->removeControllFromOutside();
+    device->changeFBExecutionState(EMGMCommandType::Stop);
+    resource->getResourceEventExecution()->joinEventChainExecutionThread();
+  }
+
+
 }
 
 BOOST_AUTO_TEST_SUITE_END()
+
+
+std::unique_ptr<CDevice> createExampleDevice(CStringDictionary::TStringId paResourceName, CStringDictionary::TStringId paDeviceName){
+  auto device = std::make_unique<CTesterDevice>(paDeviceName);
+  auto resource = new EMB_RES(paResourceName, *device);
+  device->addFB(resource);
+
+  resource->initialize();
+
+  auto startInstanceName = g_nStringIdSTART;
+  auto counterInstanceName = g_nStringIdCounter;
+  auto switchInstanceName = g_nStringIdSwitch;
+
+  resource->addFB(CTypeLib::createFB(counterInstanceName, g_nStringIdE_CTU, *resource));
+  resource->addFB(CTypeLib::createFB(switchInstanceName, g_nStringIdE_SWITCH, *resource));
+
+  forte::core::SManagementCMD command;
+  command.mCMD = EMGMCommandType::CreateConnection;
+  command.mDestination = CStringDictionary::scmInvalidStringId;
+
+  BOOST_TEST_INFO("Event connection: Start.COLD -> Counter.CU");
+  command.mFirstParam.pushBack(startInstanceName);
+  command.mFirstParam.pushBack(g_nStringIdCOLD);
+  command.mSecondParam.pushBack(counterInstanceName);
+  command.mSecondParam.pushBack(g_nStringIdCU);
+
+  BOOST_CHECK(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+  BOOST_TEST_INFO("Event connection: Counter.CUO -> Switch.EI");
+  command.mFirstParam.clear();
+  command.mFirstParam.pushBack(counterInstanceName);
+  command.mFirstParam.pushBack(g_nStringIdCUO);
+  command.mSecondParam.clear();
+  command.mSecondParam.pushBack(switchInstanceName);
+  command.mSecondParam.pushBack(g_nStringIdEI);
+  BOOST_CHECK(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+  BOOST_TEST_INFO("Data connection: Counter.Q -> Switch.G ");
+  command.mFirstParam.clear();
+  command.mFirstParam.pushBack(counterInstanceName);
+  command.mFirstParam.pushBack(g_nStringIdQ);
+  command.mSecondParam.clear();
+  command.mSecondParam.pushBack(switchInstanceName);
+  command.mSecondParam.pushBack(g_nStringIdG);
+  BOOST_CHECK(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+  BOOST_TEST_INFO(" Data constant value: Counter.PV = 1");
+  command.mFirstParam.clear();
+  command.mFirstParam.pushBack(counterInstanceName);
+  command.mFirstParam.pushBack(g_nStringIdPV);
+  BOOST_CHECK(EMGMResponse::Ready == resource->writeValue(command.mFirstParam, CIEC_STRING(std::string("1")), false));
+
+  BOOST_TEST_INFO("Event connection: Switch.EO1 -> Counter.R ");
+  command.mFirstParam.clear();
+  command.mFirstParam.pushBack(switchInstanceName);
+  command.mFirstParam.pushBack(g_nStringIdEO1);
+  command.mSecondParam.clear();
+  command.mSecondParam.pushBack(counterInstanceName);
+  command.mSecondParam.pushBack(g_nStringIdR);
+  BOOST_CHECK(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+  return device;
+}
 
 std::vector<EventMessage> getEventMessages(std::string path){
   

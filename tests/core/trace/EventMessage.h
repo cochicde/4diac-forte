@@ -14,7 +14,7 @@ public:
   EventMessage(std::string paEventType, std::unique_ptr<AbstractPayload> paPayload, int64_t paTimestamp);
 
   EventMessage(const bt_message* paMessage);
-  
+
   std::string getPayloadString() const;
 
   std::string getTimestampString() const;
@@ -23,6 +23,7 @@ public:
 
   bool operator==(const EventMessage& paOther) const;
 
+  std::string getEventType() const;
 private:
   std::string mEventType;
   std::unique_ptr<AbstractPayload> mPayload;
@@ -94,12 +95,28 @@ private:
 
   bool specificPayloadEqual(const AbstractPayload& paOther) const override;
 
-  void readDynamicArrayField(const bt_field* paField, const char* paFieldName, std::vector<std::string>& paStorage);
 
   std::vector<std::string> mInputs;
   std::vector<std::string> mOutputs;
   std::vector<std::string> mInternal;
   std::vector<std::string> mInternalFB;
+};
+
+class FBExternalEventPayload : public AbstractPayload {
+public:
+  FBExternalEventPayload(std::string paTypeName, std::string paInstanceName,
+        uint64_t paEventCounter, 
+        const std::vector<std::string>& paOutputs = {});
+
+  FBExternalEventPayload(const bt_field* paField);
+  
+private:
+  std::string specificPayloadString() const override;
+
+  bool specificPayloadEqual(const AbstractPayload& paOther) const override;
+
+  uint64_t mEventCounter;
+  std::vector<std::string> mOutputs;
 };
 
 class PayloadFactory {

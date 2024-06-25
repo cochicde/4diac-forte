@@ -107,4 +107,17 @@ trace:
                       class: dynamic-array
                       element-field-type:
                         class: string
+          # externalEventInput
+          externalEventInput:
+            payload-field-type:
+              class: structure
+              members:
+                - typeName: string # FB type name
+                - instanceName: string # FB instance name
+                - eventCounter: uint64 # event counter of the execution
+                - outputs: # Data values
+                    field-type:
+                      class: dynamic-array
+                      element-field-type:
+                        class: string
                       
