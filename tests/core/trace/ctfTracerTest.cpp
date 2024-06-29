@@ -20,7 +20,8 @@
 #include "config.h"
 #include "ctfTracerTest_gen.cpp"
 #include "device.h"
-#include "ecet.h"
+#include "ecetFactory.h"
+#include "timerHandlerFactory.h"
 #include "EventMessage.h"
 #include "trace/barectf_platform_forte.h"
 #include "../fbtests/fbtesterglobalfixture.h"
@@ -141,7 +142,8 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
 
 
   {
-    CEventChainExecutionThread::setEcetNameToCreate(std::string("manual"));
+    CEcetFactory::setEcetNameToCreate("manual");
+    CTimerHandlerFactory::setTimeHandlerNameToCreate("fakeTimer");
 
     auto resourceName = g_nStringIdMyResource;
 

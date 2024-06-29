@@ -21,8 +21,6 @@
 #include <forte_sync.h>
 #include <forte_sem.h>
 
-#include <string>
-
 /*! \ingroup CORE\brief Class for executing one event chain.
  *
  */
@@ -65,12 +63,6 @@ class CEventChainExecutionThread : public CThread{
     void resumeSelfSuspend(){
       mSuspendSemaphore.inc();
     }
-
-    static CEventChainExecutionThread* createEcet();
-
-    static void setEcetNameToCreate(std::string paName);
-
-
 
 #ifdef FORTE_TRACE_CTF
     uint64_t mEventCounter{0}; 

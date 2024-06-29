@@ -207,8 +207,8 @@ FOREACH(POS RANGE ${ECET_CLASS_LEN})
   LIST(GET ECET_NAME   ${POS} NAME_)
 
   SET(ECET_INCLUDE  "${ECET_INCLUDE}#include \"${FILENAME}\"\n")
-  
-  SET(ECET_CREATE "${ECET_CREATE}  if(gEcetNameToCreate == \"${NAME_}\") return new ${CLASS}();\n")
+
+  SET(ECET_CREATE "${ECET_CREATE}  if(smEcetNameToCreate == \"${NAME_}\") return new ${CLASS}();\n")
   math(EXPR ECET_ID           ${ECET_ID}+1)
 ENDFOREACH(POS)
 

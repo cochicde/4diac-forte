@@ -10,17 +10,19 @@
  *    Jose Cabral - initial API and implementation and/or initial documentation
  *******************************************************************************/
 
+#include "ecetFactory.h"
+
 ${ECET_INCLUDE}
 
 #include <string>
 
-std::string gEcetNameToCreate;
+std::string CEcetFactory::smEcetNameToCreate;
 
-void CEventChainExecutionThread::setEcetNameToCreate(std::string paName){
-  gEcetNameToCreate = std::move(paName);
+void CEcetFactory::setEcetNameToCreate(std::string paName){
+  smEcetNameToCreate = std::move(paName);
 }
 
-CEventChainExecutionThread* CEventChainExecutionThread::createEcet(){
+CEventChainExecutionThread* CEcetFactory::createEcet(){
 ${ECET_CREATE}
   return nullptr;
 }
