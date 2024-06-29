@@ -14,10 +14,6 @@
 #include "ecet.h"
 #include "device.h"
 
-CTimerHandler* CTimerHandler::createTimerHandler(CDeviceExecution &paDeviceExecution) {
-  return new CFakeTimerHandler(paDeviceExecution);
-}
-
 CFakeTimerHandler::CFakeTimerHandler(CDeviceExecution &paDeviceExecution) :
   CTimerHandler(paDeviceExecution), sleepTime(0), fakeSleepFb(nullptr) {
 }

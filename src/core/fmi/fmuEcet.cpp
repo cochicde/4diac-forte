@@ -26,6 +26,9 @@ CFMUEventChainExecutionThread::CFMUEventChainExecutionThread() :
 CFMUEventChainExecutionThread::~CFMUEventChainExecutionThread(){
 }
 
+    void advance(size_t paNumberOfEvents);
+
+
 void CFMUEventChainExecutionThread::run(){
   assert(mAllowedToRun);
   assert(mStepSemaphore);

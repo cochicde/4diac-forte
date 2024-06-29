@@ -21,6 +21,8 @@
 #include <forte_sync.h>
 #include <forte_sem.h>
 
+#include <string>
+
 /*! \ingroup CORE\brief Class for executing one event chain.
  *
  */
@@ -66,6 +68,14 @@ class CEventChainExecutionThread : public CThread{
 
     static CEventChainExecutionThread* createEcet();
 
+    static void setEcetNameToCreate(std::string paName);
+
+
+
+#ifdef FORTE_TRACE_CTF
+    uint64_t mEventCounter{0}; 
+#endif // FORTE_TRACE_CTF
+
   protected:
     /*! \brief List of input events to deliver.
      *
@@ -74,6 +84,16 @@ class CEventChainExecutionThread : public CThread{
     forte::core::util::CRingBuffer<TEventEntry, cgEventChainEventListSize> mEventList;
 
     void mainRun();
+
+    /*! \brief Flag indicating if this event chain execution thread is currently processing any events
+     *
+     * Initially this flag is false.
+     * This flag is activated when a new event chain is started and deactivated when the event queue is empty.
+     *
+     * Currently this flag is only needed for the FB tester.
+     * TODO consider surrounding the usage points of this flag with #defines such that it is only used for testing.
+     */
+    bool mProcessingEvents{false};
 
   private:
     /*! \brief The thread run()-method where the events are sent to the FBs and the FBs are executed in.
@@ -121,15 +141,6 @@ class CEventChainExecutionThread : public CThread{
 
     forte::arch::CSemaphore mSuspendSemaphore;
 
-    /*! \brief Flag indicating if this event chain execution thread is currently processing any events
-     *
-     * Initially this flag is false.
-     * This flag is activated when a new event chain is started and deactivated when the event queue is empty.
-     *
-     * Currently this flag is only needed for the FB tester.
-     * TODO consider surrounding the usage points of this flag with #defines such that it is only used for testing.
-     */
-    bool mProcessingEvents;
 };
 
 #endif /*ECET_H_*/

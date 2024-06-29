@@ -37,19 +37,19 @@ if("${FORTE_ARCHITECTURE}" STREQUAL "Win32")
 
   if(FORTE_BUILD_SHARED_LIBRARY)
     set(FORTE_EXTERNAL_TIMEHA OFF CACHE BOOL "Use External Time Handler")
-  if(FORTE_EXTERNAL_TIMEHA)
-    forte_set_timer(externtimeha)
-  else(FORTE_EXTERNAL_TIMEHA)
-    forte_set_timer(pctimeha)
-  endif(FORTE_EXTERNAL_TIMEHA)
+   
+    if(FORTE_EXTERNAL_TIMEHA)
+      forte_add_timerhandler(CExternTimerHandler externtimeha "externalTimer")
+      forte_add_sourcefile_hcpp(externtimeha)
+    endif(FORTE_EXTERNAL_TIMEHA)
+  
   else(FORTE_BUILD_SHARED_LIBRARY)
-    unset(FORTE_EXTERNAL_TIMEHA CACHE)
+      unset(FORTE_EXTERNAL_TIMEHA CACHE)
       forte_set_timer(pctimeha)
   endif(FORTE_BUILD_SHARED_LIBRARY)
 
-  if(FORTE_FAKE_TIME)
-    forte_set_timer(../fake_time/faketimerha)
-  endif(FORTE_FAKE_TIME)
+  forte_add_timerhandler(CPCTimerHandler pctimeha "\"\"")
+
 
   if(FORTE_COM_ETH)
    forte_add_handler(CFDSelectHandler sockhand)

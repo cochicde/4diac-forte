@@ -32,7 +32,9 @@ target_include_directories(forte_trace
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
 )
 
+forte_add_ecet(CManualEventExecutionThread "core/trace/manualEcet" "manual")
+
 forte_add_link_library(forte_trace)
 forte_add_include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-forte_add_sourcefile_hcpp(barectf_platform_forte)
+forte_add_sourcefile_hcpp(barectf_platform_forte manualEcet)

@@ -24,11 +24,12 @@ add_subdirectory(plcnext)
 add_subdirectory(posix)
 add_subdirectory(rcX)
 add_subdirectory(vxworks)
-add_subdirectory(fake_time)
 add_subdirectory(win32)
 add_subdirectory(zephyr)
-
 add_subdirectory(utils)
+
+# By placing this include directory latest fake timer takes preferences as deafult timer
+add_subdirectory(fake_time)
 
 forte_add_sourcefile_hcpp(timerha devlog)
 
@@ -65,5 +66,7 @@ if (FORTE_STACKTRACE)
 endif ()
 
 forte_add_sourcefile_with_path_cpp(${CMAKE_BINARY_DIR}/src_gen/startuphook.cpp) # created file
+forte_add_sourcefile_with_path_cpp(${CMAKE_BINARY_DIR}/arch/timerHandlerFactory.cpp) # created file
+
 
 

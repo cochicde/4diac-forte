@@ -13,7 +13,7 @@
 
 #include <forte_config.h>
 #include <stdio.h>
-#include <string.h>
+#include <string>
 #include <stdlib.h>
 
 /*!\brief Lists the help for FORTE

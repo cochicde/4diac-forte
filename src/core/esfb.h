@@ -16,6 +16,12 @@
 
 #include "funcbloc.h"
 
+#ifdef FORTE_TRACE_CTF
+#include "trace/barectf_platform_forte.h"
+#include "resource.h"
+#include "ecet.h"
+#endif
+
 /*!\ingroup CORE\brief Base-Class for all event sources.
  */
 class CEventSourceFB : public CFunctionBlock{
@@ -39,6 +45,32 @@ public:
   CEventChainExecutionThread * getEventChainExecutor() { return mEventChainExecutor; };
 
   TEventEntry *getEventSourceEventEntry() { return &mEventSourceEventEntry; };
+
+#ifdef FORTE_TRACE_CTF
+ void traceExternalEventInput() override {
+    if(barectf_is_tracing_enabled(getResource()->getTracePlatformContext().getContext())) {
+      std::vector<std::string> outputs(mInterfaceSpec->mNumDOs);
+      std::vector<const char *> outputs_c_str(outputs.size());
+
+      for(TPortId i = 0; i < outputs.size(); ++i) {
+        CIEC_ANY *value = getDO(i);
+        std::string &valueString = outputs[i];
+        valueString.reserve(value->getToStringBufferSize());
+        value->toString(valueString.data(), valueString.capacity());
+        outputs_c_str[i] = valueString.c_str();
+      }
+
+      barectf_default_trace_externalEventInput(
+        getResource()->getTracePlatformContext().getContext(),
+        getFBTypeName() ?: "null",
+        getInstanceName() ?: "null",
+        mEventChainExecutor->mEventCounter,
+        static_cast<uint32_t >(outputs.size()), 
+        outputs_c_str.data());
+  }
+ }
+#endif // FORTE_TRACE_CTF
+
 };
 
 #define EVENT_SOURCE_FUNCTION_BLOCK_CTOR(fbclass) \

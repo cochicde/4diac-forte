@@ -27,13 +27,6 @@ unsigned int __stdcall getTicksPerSecond(){
   return CExternTimerHandler::getExternTicksPerSecond();
 }
 
-CTimerHandler* CTimerHandler::createTimerHandler(CDeviceExecution& paDeviceExecution){
-  if(!CExternTimerHandler::smFORTEExtTimer){ //creating two timers is not possible
-    CExternTimerHandler::smFORTEExtTimer = new CExternTimerHandler(paDeviceExecution);
-  }
-  return CExternTimerHandler::smFORTEExtTimer;
-}
-
 CExternTimerHandler::CExternTimerHandler(CDeviceExecution& paDeviceExecution) : CTimerHandler(paDeviceExecution)  {
 }
 

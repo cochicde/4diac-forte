@@ -22,7 +22,7 @@
 #include "../arch/devlog.h"
 
 CEventChainExecutionThread::CEventChainExecutionThread() :
-    CThread(), mSuspendSemaphore(false), mProcessingEvents(false){
+    CThread(){
   clear();
 }
 
@@ -52,6 +52,9 @@ void CEventChainExecutionThread::mainRun(){
   }
   else{
     event->mFB->receiveInputEvent(event->mPortId, this);
+#ifdef FORTE_TRACE_CTF
+    mEventCounter++;
+#endif // FORTE_TRACE_CTF
   }
 }
 

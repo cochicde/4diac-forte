@@ -105,12 +105,6 @@ forte_add_sourcefile_with_path_hcpp(${FORTE_BINARY_DIR}/forteinit)
 set_source_files_properties(${FORTE_BINARY_DIR}/forteinit.h PROPERTIES GENERATED TRUE)
 set_source_files_properties(${FORTE_BINARY_DIR}/forteinit.cpp PROPERTIES GENERATED TRUE)
 
-GET_PROPERTY(SOURCE_TIMER_CPP         GLOBAL PROPERTY FORTE_TIMER_CPP)
-GET_PROPERTY(SOURCE_TIMER_H           GLOBAL PROPERTY FORTE_TIMER_H)
-
-forte_add_sourcefile_with_path_h(${SOURCE_TIMER_H})
-forte_add_sourcefile_with_path_cpp(${SOURCE_TIMER_CPP})
-
 GET_PROPERTY(SOURCE_H              GLOBAL PROPERTY FORTE_SOURCE_H)
 GET_PROPERTY(SOURCE_H_GROUP        GLOBAL PROPERTY FORTE_SOURCE_H_GROUP)
 LIST(APPEND SOURCE_FILES           ${SOURCE_H})
@@ -193,6 +187,70 @@ CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/core/deviceExecutionHandlers.cpp.in $
 forte_replacefile_if_changed(${CMAKE_BINARY_DIR}/core/deviceExecutionHandlers_new.cpp ${CMAKE_BINARY_DIR}/core/deviceExecutionHandlers.cpp)
 file(REMOVE ${CMAKE_BINARY_DIR}/core/deviceExecutionHandlers_new.cpp)
 
+#############################################################################
+# Configure ECETs
+#############################################################################
+
+GET_PROPERTY(ECET_CLASS GLOBAL PROPERTY FORTE_ECET_CLASS)
+GET_PROPERTY(ECET_FILENAME GLOBAL PROPERTY FORTE_ECET_FILENAME)
+GET_PROPERTY(ECET_NAME GLOBAL PROPERTY FORTE_ECET_NAME)
+
+LIST(LENGTH ECET_CLASS ECET_CLASS_LEN)
+math(EXPR ECET_CLASS_LEN  ${ECET_CLASS_LEN}-1)
+
+SET(ECET_INCLUDE "")
+SET(ECET_CREATE "")
+  
+FOREACH(POS RANGE ${ECET_CLASS_LEN})
+  LIST(GET ECET_CLASS      ${POS} CLASS) 
+  LIST(GET ECET_FILENAME   ${POS} FILENAME)
+  LIST(GET ECET_NAME   ${POS} NAME_)
+
+  SET(ECET_INCLUDE  "${ECET_INCLUDE}#include \"${FILENAME}\"\n")
+  
+  SET(ECET_CREATE "${ECET_CREATE}  if(gEcetNameToCreate == \"${NAME_}\") return new ${CLASS}();\n")
+  math(EXPR ECET_ID           ${ECET_ID}+1)
+ENDFOREACH(POS)
+
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/core/ecetFactory.cpp.in ${CMAKE_BINARY_DIR}/core/ecetFactory_new.cpp)
+forte_replacefile_if_changed(${CMAKE_BINARY_DIR}/core/ecetFactory_new.cpp ${CMAKE_BINARY_DIR}/core/ecetFactory.cpp)
+file(REMOVE ${CMAKE_BINARY_DIR}/core/ecetFactory_new.cpp)
+
+#############################################################################
+# Configure Timers
+#############################################################################
+
+GET_PROPERTY(TIMERHANDLER_CLASS GLOBAL PROPERTY FORTE_TIMERHANDLER_CLASS)
+GET_PROPERTY(TIMERHANDLER_FILENAME GLOBAL PROPERTY FORTE_TIMERHANDLER_FILENAME)
+GET_PROPERTY(TIMERHANDLER_NAME GLOBAL PROPERTY FORTE_TIMERHANDLER_NAME)
+GET_PROPERTY(TIMERHANDLER_DEFAULT GLOBAL PROPERTY FORTE_TIMERHANDLER_DEFAULT)
+
+if(NOT DEFINED ${TIMERHANDLER_DEFAULT})
+  set(TIMERHANDLER_DEFAULT "\"\"")
+endif()
+
+SET(TIMERHANDLER_INCLUDE "")
+SET(TIMERHANDLER_CREATE "")
+
+LIST(LENGTH TIMERHANDLER_CLASS TIMERHANDLER_CLASS_LEN)
+math(EXPR TIMERHANDLER_CLASS_LEN ${TIMERHANDLER_CLASS_LEN}-1)
+
+
+FOREACH(POS RANGE ${TIMERHANDLER_CLASS_LEN})
+
+  LIST(GET TIMERHANDLER_CLASS      ${POS} CLASS) 
+  LIST(GET TIMERHANDLER_FILENAME   ${POS} FILENAME)
+  LIST(GET TIMERHANDLER_NAME       ${POS} NAME_)
+
+  SET(TIMERHANDLER_INCLUDE  "${TIMERHANDLER_INCLUDE}#include \"${FILENAME}\"\n")
+  
+  SET(TIMERHANDLER_CREATE "${TIMERHANDLER_CREATE}  if(smTimeHandlerToCreate == \"${NAME_}\") return new ${CLASS}(paDeviceExecution);\n")
+  math(EXPR TIMERHANDLER_ID           ${TIMERHANDLER_ID}+1)
+ENDFOREACH(POS)
+
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/arch/timerHandlerFactory.cpp.in ${CMAKE_BINARY_DIR}/arch/timerHandlerFactory_new.cpp)
+forte_replacefile_if_changed(${CMAKE_BINARY_DIR}/arch/timerHandlerFactory_new.cpp ${CMAKE_BINARY_DIR}/arch/timerHandlerFactory.cpp)
+file(REMOVE ${CMAKE_BINARY_DIR}/arch/timerHandlerFactory_new.cpp)
 
 #############################################################################
 # Configure startuphook
