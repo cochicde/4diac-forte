@@ -15,6 +15,7 @@
 
 #include "../ecet.h"
 
+#include <functional>
 #include <mutex>
 #include <condition_variable>
 
@@ -22,6 +23,14 @@ class CManualEventExecutionThread : public CEventChainExecutionThread{
   public:
     CManualEventExecutionThread();
     ~CManualEventExecutionThread() override = default;
+
+    void insertFront(TEventEntry paEvent);
+
+    void startEventChain(TEventEntry paEventToAdd) override;
+
+    void clearExternal();
+
+    void allowInternallyGeneratedEventChains(bool allow, std::function<void(TEventEntry)> callback);
 
     /**
      * @brief Advance the execution a certain amount of events. 
@@ -36,11 +45,16 @@ class CManualEventExecutionThread : public CEventChainExecutionThread{
     void removeControllFromOutside();
 
 private:
+
+    void defaultEventChainCallback(TEventEntry paEventEntry);
+
     void run() override;
     std::mutex mMutex;
     std::condition_variable mConditionVariable;
     bool mCanRun{false};
     bool mIsControlledFromOutside{true};
+    bool mAllowInternallyGeneratedEventChains{false};
+    std::function<void(TEventEntry)> mCallback;
 };
 
 #endif /*_TESTS_CORE_MANUALECET_H_*/

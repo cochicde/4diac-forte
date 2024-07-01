@@ -30,6 +30,8 @@ private:
 /* \brief the event chain executor used by this ES.
  */
   CEventChainExecutionThread *mEventChainExecutor;
+
+protected:
   TEventEntry mEventSourceEventEntry; //! the event entry to start the event chain
 
 public:
@@ -47,26 +49,23 @@ public:
   TEventEntry *getEventSourceEventEntry() { return &mEventSourceEventEntry; };
 
 #ifdef FORTE_TRACE_CTF
- void traceExternalEventInput() override {
-    if(barectf_is_tracing_enabled(getResource()->getTracePlatformContext().getContext())) {
+ void traceExternalEventInput(TEventID paEIID) override {
+    if(auto& tracer = getResource()->getTracer(); tracer.isEnabled()){
       std::vector<std::string> outputs(mInterfaceSpec->mNumDOs);
-      std::vector<const char *> outputs_c_str(outputs.size());
 
       for(TPortId i = 0; i < outputs.size(); ++i) {
         CIEC_ANY *value = getDO(i);
         std::string &valueString = outputs[i];
         valueString.reserve(value->getToStringBufferSize());
         value->toString(valueString.data(), valueString.capacity());
-        outputs_c_str[i] = valueString.c_str();
       }
 
-      barectf_default_trace_externalEventInput(
-        getResource()->getTracePlatformContext().getContext(),
-        getFBTypeName() ?: "null",
-        getInstanceName() ?: "null",
-        mEventChainExecutor->mEventCounter,
-        static_cast<uint32_t >(outputs.size()), 
-        outputs_c_str.data());
+      tracer.traceExternalInputEvent(
+            getFBTypeName() ?: "null",
+            getInstanceName() ?: "null",
+            static_cast<uint64_t>(paEIID),
+            mEventChainExecutor->mEventCounter,
+            outputs);
   }
  }
 #endif // FORTE_TRACE_CTF

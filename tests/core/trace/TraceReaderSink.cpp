@@ -1,10 +1,11 @@
 #include "TraceReaderSink.h"
-#include "EventMessage.h"
 
 #include <inttypes.h> // for printing 
 #include <sstream>
 #include <iostream>
 #include <cstring>
+
+#include "traceMessageFactory.h"
 
 namespace forte{
   
@@ -75,7 +76,7 @@ bt_component_class_sink_consume_method_status EventsReader::consume()
         continue;
     }
 
-    mOutput.emplace_back(message);  
+    mOutput.emplace_back(MessageFactory::createMessage(message));  
 
     // Put this message's reference
     bt_message_put_ref(message);

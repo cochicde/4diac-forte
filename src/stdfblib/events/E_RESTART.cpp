@@ -32,7 +32,6 @@ const SFBInterfaceSpec FORTE_E_RESTART::scmFBInterfaceSpec = {
 
 FORTE_E_RESTART::FORTE_E_RESTART(const CStringDictionary::TStringId paInstanceNameId, forte::core::CFBContainer &paContainer) :
         CEventSourceFB(paContainer, &scmFBInterfaceSpec, paInstanceNameId),
-        mEventToSend(cgInvalidEventID),
         conn_COLD(this, 0),
         conn_WARM(this, 1),
         conn_STOP(this, 2) {
@@ -40,13 +39,13 @@ FORTE_E_RESTART::FORTE_E_RESTART(const CStringDictionary::TStringId paInstanceNa
 };
 
 void FORTE_E_RESTART::executeEvent(TEventID paEIID, CEventChainExecutionThread *const paECET) {
-  if(cgExternalEventID == paEIID && cgInvalidEventID != mEventToSend) {
-    sendOutputEvent(mEventToSend, paECET);
-    if(scmEventSTOPID == mEventToSend) {
-      //stop event is sent put the FB finally into the stopped state
-      CFunctionBlock::changeFBExecutionState(EMGMCommandType::Stop);
-      // release semaphore to indicate that the stop event was sent now
-      mSuspendSemaphore.inc();
+    if(cgInvalidEventID != paEIID) {
+      sendOutputEvent(paEIID, paECET);
+      if(scmEventSTOPID == paEIID) {
+        //stop event is sent put the FB finally into the stopped state
+        CFunctionBlock::changeFBExecutionState(EMGMCommandType::Stop);
+        // release semaphore to indicate that the stop event was sent now
+        mSuspendSemaphore.inc();
     }
   }
 }
@@ -89,18 +88,18 @@ EMGMResponse FORTE_E_RESTART::changeFBExecutionState(EMGMCommandType paCommand){
   if(EMGMResponse::Ready == eRetVal){
     switch(paCommand){
       case EMGMCommandType::Start:
-        mEventToSend = (scmEventSTOPID == mEventToSend) ? scmEventWARMID : scmEventCOLDID;
+        mEventSourceEventEntry.mPortId = (scmEventSTOPID == mEventSourceEventEntry.mPortId) ? scmEventWARMID : scmEventCOLDID;
         getDevice()->getDeviceExecution().startNewEventChain(this);
         break;
       case EMGMCommandType::Stop:
-        mEventToSend = scmEventSTOPID;
+        mEventSourceEventEntry.mPortId = scmEventSTOPID;
         CFunctionBlock::changeFBExecutionState(EMGMCommandType::Start);   //keep FB in running state until stop event is delivered.
         getDevice()->getDeviceExecution().startNewEventChain(this);
         // wait until semaphore is released, after STOP eventExecution was completed
         mSuspendSemaphore.waitIndefinitely();
         break;
       default:
-        mEventToSend = cgInvalidEventID;
+        mEventSourceEventEntry.mPortId = cgInvalidEventID;
         break;
     }
   }

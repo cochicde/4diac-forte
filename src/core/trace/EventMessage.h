@@ -5,15 +5,14 @@
 #include <string>
 #include <vector>
 
-#include <babeltrace2/babeltrace.h>
-
 class AbstractPayload;
 
 class EventMessage {
 public:
   EventMessage(std::string paEventType, std::unique_ptr<AbstractPayload> paPayload, int64_t paTimestamp);
 
-  EventMessage(const bt_message* paMessage);
+  EventMessage(const EventMessage& paOther);
+  EventMessage& operator=(const EventMessage& paOther);
 
   std::string getPayloadString() const;
 
@@ -22,6 +21,9 @@ public:
   int64_t getTimestamp () const { return mTimestamp;}
 
   bool operator==(const EventMessage& paOther) const;
+
+  template<typename T>
+  T getPayload();
 
   std::string getEventType() const;
 private:
@@ -34,15 +36,15 @@ class AbstractPayload {
 public:
   AbstractPayload(std::string paTypeName, std::string paInstanceName);
 
-  AbstractPayload(const bt_field* paField);
-  
   std::string getString() const;
+
+  virtual std::unique_ptr<AbstractPayload> clone() = 0;
 
   bool operator==(const AbstractPayload& paOther) const;
 
   virtual ~AbstractPayload() = default;
 
-protected:
+// protected:
   virtual bool specificPayloadEqual(const AbstractPayload& paOther) const = 0;
 
   virtual std::string specificPayloadString() const = 0;
@@ -55,9 +57,11 @@ class FBEventPayload : public AbstractPayload {
 public:
   FBEventPayload(std::string paTypeName, std::string paInstanceName, const uint64_t paEventId);
 
-  FBEventPayload(const bt_field* paField);
-
 private:
+
+  std::unique_ptr<AbstractPayload> clone() override;
+
+
   std::string specificPayloadString() const override;
 
   bool specificPayloadEqual(const AbstractPayload& paOther) const override;
@@ -69,9 +73,9 @@ class FBDataPayload : public AbstractPayload {
 public:
   FBDataPayload(std::string paTypeName, std::string paInstanceName, uint64_t paDataId, std::string paValue);
 
-  FBDataPayload(const bt_field* paField);
-
 private:
+  std::unique_ptr<AbstractPayload> clone() override;
+
   std::string specificPayloadString() const override;
 
   bool specificPayloadEqual(const AbstractPayload& paOther) const override;
@@ -88,13 +92,13 @@ public:
         const std::vector<std::string>& paInternal,
         const std::vector<std::string>& paInternalFB);
 
-  FBInstanceDataPayload(const bt_field* paField);
-  
 private:
+
+  std::unique_ptr<AbstractPayload> clone() override;
+
   std::string specificPayloadString() const override;
 
   bool specificPayloadEqual(const AbstractPayload& paOther) const override;
-
 
   std::vector<std::string> mInputs;
   std::vector<std::string> mOutputs;
@@ -105,23 +109,28 @@ private:
 class FBExternalEventPayload : public AbstractPayload {
 public:
   FBExternalEventPayload(std::string paTypeName, std::string paInstanceName,
+        uint64_t paEventId,
         uint64_t paEventCounter, 
         const std::vector<std::string>& paOutputs = {});
 
-  FBExternalEventPayload(const bt_field* paField);
-  
-private:
+//private:
+
+  std::unique_ptr<AbstractPayload> clone() override;
+
   std::string specificPayloadString() const override;
 
   bool specificPayloadEqual(const AbstractPayload& paOther) const override;
 
+  uint64_t mEventId;
   uint64_t mEventCounter;
   std::vector<std::string> mOutputs;
 };
 
-class PayloadFactory {
-public:
-  static std::unique_ptr<AbstractPayload> createPayload(const std::string& paEventType, const bt_field* paField);
-};
+
+  template<typename T>
+  T EventMessage::getPayload() {
+    return *dynamic_cast<T*>(mPayload->clone().get());
+  }
+
 
 #endif //  _FORTE_TESTS_CORE_TRACE_EVENT_MESSAGE_H_

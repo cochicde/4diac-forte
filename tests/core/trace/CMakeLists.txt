@@ -21,7 +21,7 @@ if(FORTE_TRACE_CTF_TEST)
 
   forte_test_add_sourcefile_cpp(ctfTracerTest.cpp)
   forte_test_add_sourcefile_cpp(TraceReaderSink.cpp)
-  forte_test_add_sourcefile_cpp(EventMessage.cpp)
+  forte_test_add_sourcefile_cpp(traceMessageFactory.cpp)
 
 
   forte_add_link_library(babeltrace2)

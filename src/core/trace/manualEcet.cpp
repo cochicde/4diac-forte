@@ -17,8 +17,46 @@
 
 CManualEventExecutionThread::CManualEventExecutionThread() :
     CEventChainExecutionThread(){
+    mCallback = [this](TEventEntry paEventToAdd){
+      this->defaultEventChainCallback(paEventToAdd);
+    };
 }
-#include <iostream>
+
+void CManualEventExecutionThread::clearExternal() {
+  mExternalEventList.clear();
+}
+
+
+void CManualEventExecutionThread::startEventChain(TEventEntry paEventToAdd) {
+  if(!mAllowInternallyGeneratedEventChains){
+    return;
+  }
+  mCallback(paEventToAdd);
+}
+
+void CManualEventExecutionThread::defaultEventChainCallback(TEventEntry paEventEntry){
+  CEventChainExecutionThread::startEventChain(paEventEntry);
+}
+
+void CManualEventExecutionThread::allowInternallyGeneratedEventChains(bool allow, std::function<void(TEventEntry)> callback) {
+  mCallback = callback;
+  mAllowInternallyGeneratedEventChains = allow;
+}
+
+void CManualEventExecutionThread::insertFront(TEventEntry paEvent){
+  decltype(mEventList) temp;
+  temp.clear();
+  temp.push(paEvent);
+  while(!mEventList.isEmpty()){
+    temp.push(*mEventList.pop());
+  }
+
+  while(!temp.isEmpty()){
+    mEventList.push(*temp.pop());
+  }
+  mProcessingEvents = true;
+}
+
 size_t CManualEventExecutionThread::advance(size_t paNumberOfEvents){
   while(paNumberOfEvents != 0){
     {

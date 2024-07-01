@@ -18,6 +18,8 @@
 #include <chrono>
 #include "forte_architecture_time.h"
 
+#include <algorithm>
+
 std::filesystem::path BarectfPlatformFORTE::traceDirectory = std::filesystem::path();
 bool BarectfPlatformFORTE::enabled = false;
 
@@ -115,4 +117,92 @@ std::string BarectfPlatformFORTE::dateCapture() {
   stream << std::put_time(&ptm, "_%Y%m%d_%H%M%S");
   stream << std::setfill('0') << std::setw(3) << millisecondsPart;
   return stream.str();
+}
+
+
+void BarectfPlatformFORTE::traceInstanceData(std::string paTypeName, std::string paInstanceName, 
+        const std::vector<std::string>& paInputs,
+        const std::vector<std::string>& paOutputs,
+        const std::vector<std::string>& paInternal,
+        const std::vector<std::string>& paInternalFB){
+
+  std::vector<const char *> inputs_c_str(paInputs.size());
+  std::vector<const char *> outputs_c_str(paOutputs.size());
+  std::vector<const char *> internals_c_str(paInternal.size());
+  std::vector<const char *> internalFbs_c_str(paInternalFB.size());
+
+  auto getCstring = [](const auto& str) {
+    return str.c_str();
+  };
+
+  std::transform(paInputs.cbegin(), paInputs.cend(), inputs_c_str.begin(), getCstring);
+  std::transform(paOutputs.cbegin(), paOutputs.cend(), outputs_c_str.begin(), getCstring);
+  std::transform(paInternal.cbegin(), paInternal.cend(), internals_c_str.begin(), getCstring);
+  std::transform(paInternalFB.cbegin(), paInternalFB.cend(), internalFbs_c_str.begin(), getCstring);
+
+  barectf_default_trace_instanceData(&context,
+                                     paTypeName.c_str(),
+                                     paInstanceName.c_str(),
+                                     static_cast<uint32_t >(inputs_c_str.size()), inputs_c_str.data(),
+                                     static_cast<uint32_t >(outputs_c_str.size()), outputs_c_str.data(),
+                                     static_cast<uint32_t >(internals_c_str.size()), internals_c_str.data(),
+                                     static_cast<uint32_t >(internalFbs_c_str.size()), internalFbs_c_str.data());
+
+}
+
+void BarectfPlatformFORTE::traceReceiveInputEvent(std::string paTypeName, std::string paInstanceName, const uint64_t paEventId){
+    barectf_default_trace_receiveInputEvent(&context,
+                            paTypeName.c_str(),
+                            paInstanceName.c_str(),
+                            paEventId);
+}
+
+void BarectfPlatformFORTE::traceSendOutputEvent(std::string paTypeName, std::string paInstanceName, const uint64_t paEventId){
+    barectf_default_trace_sendOutputEvent(&context,
+                            paTypeName.c_str(),
+                            paInstanceName.c_str(),
+                            paEventId);
+}
+
+void BarectfPlatformFORTE::traceInputData(std::string paTypeName, std::string paInstanceName, uint64_t paDataId, std::string paValue){
+    barectf_default_trace_inputData(&context,
+                            paTypeName.c_str(),
+                            paInstanceName.c_str(),
+                            paDataId, 
+                            paValue.c_str());
+}
+
+void BarectfPlatformFORTE::traceOutputData(std::string paTypeName, std::string paInstanceName, uint64_t paDataId, std::string paValue){
+    barectf_default_trace_outputData(&context,
+                            paTypeName.c_str(),
+                            paInstanceName.c_str(),
+                            paDataId, 
+                            paValue.c_str());
+}
+
+void BarectfPlatformFORTE::traceExternalInputEvent(std::string paTypeName, std::string paInstanceName,
+    uint64_t paEventId,
+    uint64_t paEventCounter, 
+    const std::vector<std::string>& paOutputs){
+           
+    std::vector<const char *> outputs_c_str(paOutputs.size());
+
+    auto getCstring = [](const auto& str) {
+      return str.c_str();
+    };
+
+   std::transform(paOutputs.cbegin(), paOutputs.cend(), outputs_c_str.begin(), getCstring);
+
+  barectf_default_trace_externalEventInput(
+        &context,
+        paTypeName.c_str(),
+        paInstanceName.c_str(),
+        paEventId,
+        paEventCounter,
+        static_cast<uint32_t >(outputs_c_str.size()), 
+        outputs_c_str.data());
+}
+
+bool BarectfPlatformFORTE::isEnabled() {
+  return barectf_is_tracing_enabled(&context);
 }

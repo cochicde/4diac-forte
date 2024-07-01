@@ -298,8 +298,8 @@ class CFunctionBlock {
 
       #ifdef FORTE_TRACE_CTF
         class CEventSource;
+        traceExternalEventInput(paEIID);
         traceInputEvent(paEIID);
-        traceExternalEventInput();
       #endif
 
       if(E_FBStates::Running == getState()){
@@ -691,7 +691,7 @@ class CFunctionBlock {
 #ifdef FORTE_TRACE_CTF
     void traceInputEvent(TEventID paEIID);
     void traceOutputEvent(TEventID paEOID);
-    virtual void traceExternalEventInput() {};
+    virtual void traceExternalEventInput(TEventID ) {};
 #endif
     //! the instance name of the object
     CStringDictionary::TStringId mFBInstanceName;

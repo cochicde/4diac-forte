@@ -173,17 +173,12 @@ void CBasicFB::traceInstanceData() {
   std::vector<std::string> outputs(mInterfaceSpec->mNumDOs);
   std::vector<std::string> internals(cmVarInternals ? cmVarInternals->mNumIntVars : 0);
   std::vector<std::string> internalFbs(getInternalFBNum());
-  std::vector<const char *> inputs_c_str(inputs.size());
-  std::vector<const char *> outputs_c_str(outputs.size());
-  std::vector<const char *> internals_c_str(internals.size());
-  std::vector<const char *> internalFbs_c_str(internalFbs.size());
-
+  
   for(TPortId i = 0; i < inputs.size(); ++i) {
     CIEC_ANY *value = getDI(i);
     std::string &valueString = inputs[i];
     valueString.reserve(value->getToStringBufferSize());
     value->toString(valueString.data(), valueString.capacity());
-    inputs_c_str[i] = valueString.c_str();
   }
 
   for(TPortId i = 0; i < outputs.size(); ++i) {
@@ -191,7 +186,6 @@ void CBasicFB::traceInstanceData() {
     std::string &valueString = outputs[i];
     valueString.reserve(value->getToStringBufferSize());
     value->toString(valueString.data(), valueString.capacity());
-    outputs_c_str[i] = valueString.c_str();
   }
 
   for(TPortId i = 0; i < internals.size(); ++i) {
@@ -199,7 +193,6 @@ void CBasicFB::traceInstanceData() {
     std::string &valueString = internals[i];
     valueString.reserve(value->getToStringBufferSize());
     value->toString(valueString.data(), valueString.capacity());
-    internals_c_str[i] = valueString.c_str();
   }
 
   for(TPortId i = 0; i < internalFbs.size(); ++i) {
@@ -207,16 +200,15 @@ void CBasicFB::traceInstanceData() {
     std::string &valueString = internalFbs[i];
     valueString.reserve(value->getToStringBufferSize());
     value->toString(valueString.data(), valueString.capacity());
-    internalFbs_c_str[i] = valueString.c_str();
   }
 
-  barectf_default_trace_instanceData(getResource()->getTracePlatformContext().getContext(),
-                                     getFBTypeName() ?: "null",
-                                     getInstanceName() ?: "null",
-                                     static_cast<uint32_t >(inputs.size()), inputs_c_str.data(),
-                                     static_cast<uint32_t >(outputs.size()), outputs_c_str.data(),
-                                     static_cast<uint32_t >(internals.size()), internals_c_str.data(),
-                                     static_cast<uint32_t >(internalFbs.size()), internalFbs_c_str.data());
+  getResource()->getTracer().traceInstanceData(
+                        getFBTypeName() ?: "null",
+                        getInstanceName() ?: "null",
+                        inputs, 
+                        outputs, 
+                        internals,
+                        internalFbs);    
 }
 #endif
 

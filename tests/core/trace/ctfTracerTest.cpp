@@ -22,7 +22,7 @@
 #include "device.h"
 #include "ecetFactory.h"
 #include "timerHandlerFactory.h"
-#include "EventMessage.h"
+#include "trace/EventMessage.h"
 #include "trace/barectf_platform_forte.h"
 #include "../fbtests/fbtesterglobalfixture.h"
 
@@ -93,8 +93,8 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
   std::vector<EventMessage> expectedMessages;
 
   // timestamp cannot properly be tested, so setting everythin to zero
-  expectedMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 65534),0);
-  expectedMessages.emplace_back("externalEventInput", std::make_unique<FBExternalEventPayload>("E_RESTART", "START", 0),0);
+  expectedMessages.emplace_back("externalEventInput", std::make_unique<FBExternalEventPayload>("E_RESTART", "START", 0, 0),0);
+  expectedMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 0),0);
   expectedMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 0),0);
   expectedMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_CTU", "Counter", 0),0);
   expectedMessages.emplace_back("instanceData", std::make_unique<FBInstanceDataPayload>("E_CTU", "Counter", std::vector<std::string>{"1"}, std::vector<std::string>{"FALSE", "0"}, std::vector<std::string>{}, std::vector<std::string>{}), 0);
@@ -110,8 +110,8 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
   expectedMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_CTU", "Counter", 1),0);
   expectedMessages.emplace_back("outputData", std::make_unique<FBDataPayload>("E_CTU", "Counter", 0, "FALSE"), 0);
   expectedMessages.emplace_back("outputData", std::make_unique<FBDataPayload>("E_CTU", "Counter", 1, "0"), 0);
-  expectedMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 65534),0);
-  expectedMessages.emplace_back("externalEventInput", std::make_unique<FBExternalEventPayload>("E_RESTART", "START", 4),0);
+  expectedMessages.emplace_back("externalEventInput", std::make_unique<FBExternalEventPayload>("E_RESTART", "START", 2, 4),0);
+  expectedMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 2),0);
   expectedMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 2),0);
 
   auto ctfMessages = getEventMessages(CTF_OUTPUT_DIR);
@@ -121,7 +121,7 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
 
   // although vectors can be check directly, this granularity helps debugging in case some message is different
   for(size_t i = 0; i < expectedMessages.size(); i++ ){
-    BOOST_TEST_INFO("Expexted event number " + std::to_string(i));
+    BOOST_TEST_INFO("Expected event number " + std::to_string(i));
     BOOST_CHECK(ctfMessages[i] == expectedMessages[i]);
   }
 
@@ -129,23 +129,37 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
   expectedMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 2),0);
   BOOST_CHECK(ctfMessages != expectedMessages);
 
+  // remove recently added message
+  expectedMessages.pop_back();
 
+  std::vector<EventMessage> externalEvents;
 
-    std::vector<EventMessage> externalEvents;
-
-    for(auto& message : ctfMessages){
-      if(message.getEventType() == "externalEventInput"){
-        externalEvents.push_back(std::move(message));
-      }
+  for(const auto& message : ctfMessages){
+    if(message.getEventType() == "externalEventInput"){
+      externalEvents.push_back(message);
     }
-    printPrettyMessages(externalEvents);
+  }
+  // printPrettyMessages(externalEvents);
 
 
   {
+
     CEcetFactory::setEcetNameToCreate("manual");
     CTimerHandlerFactory::setTimeHandlerNameToCreate("fakeTimer");
+    CFlexibelTracer::setTracer("SomeOtherThing");
+
 
     auto resourceName = g_nStringIdMyResource;
+
+    std::vector<EventMessage> expectedGeneratedMessages;
+    std::unordered_map<CStringDictionary::TStringId, std::vector<EventMessage>&> resourceToMessagesMap;
+
+    resourceToMessagesMap.insert({resourceName,  expectedGeneratedMessages});
+    resourceToMessagesMap.insert({g_nStringIdMyDevice,  expectedGeneratedMessages});
+
+
+    CInternalTracer::setResourceOutputMap(resourceToMessagesMap); 
+
 
     auto device = createExampleDevice(resourceName);
 
@@ -159,15 +173,38 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
     device->startDevice();
 
     auto manualEcet = dynamic_cast<CManualEventExecutionThread*>(resource->getResourceEventExecution());
-    // wait for all events to be triggered
-    while(0 == manualEcet->advance(1)){
+
+    for(auto& externalEvent : externalEvents){
+      auto payload = externalEvent.getPayload<FBExternalEventPayload>();
+      manualEcet->advance(payload.mEventCounter);
+
+      id.clear();
+      id.pushBack(CStringDictionary::getInstance().getId(payload.mInstanceName.c_str()));
+      forte::core::TNameIdentifier::CIterator anotherIterator(id.begin());
+      auto fb = resource->getContainedFB(anotherIterator);
+
+      manualEcet->insertFront(CConnectionPoint(fb, payload.mEventId));
     }
-    manualEcet->removeControllFromOutside();
+
+    auto releaseEcet = [&manualEcet](TEventEntry){
+      manualEcet->removeControllFromOutside();
+    };
+
+    manualEcet->allowInternallyGeneratedEventChains(true, releaseEcet);
+
     device->changeFBExecutionState(EMGMCommandType::Stop);
+
     resource->getResourceEventExecution()->joinEventChainExecutionThread();
+
+    BOOST_TEST_INFO("Expected vs Generated: Same size ");
+    BOOST_CHECK_EQUAL(expectedGeneratedMessages.size(), expectedMessages.size());
+
+    // although vectors can be check directly, this granularity helps debugging in case some message is different
+    for(size_t i = 0; i < expectedMessages.size(); i++ ){
+      BOOST_TEST_INFO("Expected vs Generated event number " + std::to_string(i));
+      BOOST_CHECK(expectedGeneratedMessages[i] == expectedMessages[i]);
+    }
   }
-
-
 }
 
 BOOST_AUTO_TEST_SUITE_END()

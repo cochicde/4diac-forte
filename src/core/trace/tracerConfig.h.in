@@ -1,0 +1,4 @@
+#include "${FORTE_TRACER_INCLUDE}"
+
+using FORTE_TRACER = ${FORTE_TRACER};
+

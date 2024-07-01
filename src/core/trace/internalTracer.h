@@ -1,6 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2022 Martin Erich Jobst
- *               2023 Primetals Technologies Austria GmbH
+ * Copyright (c) 2024 Jose Cabral
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License 2.0 which is available at
@@ -9,46 +8,31 @@
  * SPDX-License-Identifier: EPL-2.0
  *
  * Contributors:
- *    Martin Jobst
+ *    Jose Cabral
  *      - initial implementation
  *******************************************************************************/
-#ifndef BARECTF_PLATFORM_FORTE_H
-#define BARECTF_PLATFORM_FORTE_H
 
-#include <string>
-#include <fstream>
-#include <memory>
-#include <filesystem>
+#ifndef INTERNAL_TRACER_H
+#define INTERNAL_TRACER_H
+
+#include <unordered_map>
+#include <vector>
 
 #include "tracer.h"
 
+#include "EventMessage.h"
 #include "stringdict.h"
 
-#include "barectf.h"
+class CInternalTracer final : public CTracer {
+public: 
 
-class BarectfPlatformFORTE final : public CTracer {
-private:
-    std::ofstream output;
-    std::unique_ptr<uint8_t []> buffer;
-    barectf_default_ctx context;
+    CInternalTracer(CStringDictionary::TStringId instanceName, size_t bufferSize);
 
-    static bool enabled;
-    static std::filesystem::path traceDirectory;
+    virtual ~CInternalTracer() = default;
 
-    static uint64_t getClock(void *const data);
-    static int isBackendFull(void *data);
-    static void openPacket(void *data);
-    static void closePacket(void * data);
-    static const struct barectf_platform_callbacks barectfCallbacks;
-    static std::string dateCapture(void);
-public:
-    barectf_default_ctx *getContext() {
-      return &context;
-    }
+    CInternalTracer(const CInternalTracer&) = delete;
+    CInternalTracer& operator=(const CInternalTracer&) = delete;
 
-    BarectfPlatformFORTE(std::filesystem::path filename, size_t bufferSize);
-    BarectfPlatformFORTE(CStringDictionary::TStringId instanceName, size_t bufferSize);
-    ~BarectfPlatformFORTE();
 
     void traceInstanceData(std::string paTypeName, std::string paInstanceName, 
         const std::vector<std::string>& paInputs,
@@ -71,11 +55,14 @@ public:
 
     bool isEnabled() override;
 
+    static void setResourceOutputMap(std::unordered_map<CStringDictionary::TStringId, std::vector<EventMessage>&>& paResourceOutputMap);
 
-    BarectfPlatformFORTE(const BarectfPlatformFORTE&) = delete;
-    BarectfPlatformFORTE& operator=(const BarectfPlatformFORTE&) = delete;
+private: 
+  std::vector<EventMessage>& mOutput;
 
-    static void setup(std::string directory);
+  static std::unordered_map<CStringDictionary::TStringId, std::vector<EventMessage>&> smResourceOutputMap;
+
+
 };
 
-#endif // BARECTF_PLATFORM_FORTE_H
+#endif // INTERNAL_TRACER_H

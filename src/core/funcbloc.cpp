@@ -361,14 +361,15 @@ void CFunctionBlock::readData(size_t paDINum, CIEC_ANY& paValue, const CDataConn
 #ifdef FORTE_SUPPORT_MONITORING
   }
 #endif //FORTE_SUPPORT_MONITORING
-  if(barectf_is_tracing_enabled(getResource()->getTracePlatformContext().getContext())) {
+  if(auto& tracer = getResource()->getTracer(); tracer.isEnabled()){
     std::string valueString;
     valueString.reserve(paValue.getToStringBufferSize());
     paValue.toString(valueString.data(), valueString.capacity());
-    barectf_default_trace_inputData(this->getResource()->getTracePlatformContext().getContext(),
-                                    getFBTypeName() ?: "null",
-                                    getInstanceName() ?: "null",
-                                    static_cast<uint64_t>(paDINum), valueString.c_str());
+    
+    tracer.traceInputData(getFBTypeName() ?: "null",
+                          getInstanceName() ?: "null",
+                          static_cast<uint64_t>(paDINum), 
+                          valueString.c_str());
   }
 }
 #endif //FORTE_TRACE_CTF
@@ -387,14 +388,15 @@ void CFunctionBlock::writeData(size_t paDONum, CIEC_ANY& paValue, CDataConnectio
     }
 #endif //FORTE_SUPPORT_MONITORING
   }
-  if(barectf_is_tracing_enabled(getResource()->getTracePlatformContext().getContext())) {
+  if(auto& tracer = getResource()->getTracer(); tracer.isEnabled()){
     std::string valueString;
     valueString.reserve(paValue.getToStringBufferSize());
     paValue.toString(valueString.data(), valueString.capacity());
-    barectf_default_trace_outputData(this->getResource()->getTracePlatformContext().getContext(),
-                                     getFBTypeName() ?: "null",
-                                     getInstanceName() ?: "null",
-                                     static_cast<uint64_t>(paDONum), valueString.c_str());
+    
+    tracer.traceOutputData(getFBTypeName() ?: "null",
+                          getInstanceName() ?: "null",
+                          static_cast<uint64_t>(paDONum), 
+                          valueString.c_str());
   }
 }
 #endif //FORTE_TRACE_CTF
@@ -693,21 +695,20 @@ size_t CFunctionBlock::getToStringBufferSize() const {
 //********************************** below here are CTF Tracing specific functions **********************************************************
 #ifdef FORTE_TRACE_CTF
 void CFunctionBlock::traceInputEvent(TEventID paEIID){
-  if(barectf_is_tracing_enabled(getResource()->getTracePlatformContext().getContext())) {
-    barectf_default_trace_receiveInputEvent(this->getResource()->getTracePlatformContext().getContext(),
-                                            getFBTypeName() ?: "null",
-                                            getInstanceName() ?: "null",
-                                            static_cast<uint64_t>(paEIID));
+
+  if(auto& tracer = this->getResource()->getTracer(); tracer.isEnabled()){
+    tracer.traceReceiveInputEvent(getFBTypeName() ?: "null",
+                            getInstanceName() ?: "null",
+                            static_cast<uint64_t>(paEIID));
     traceInstanceData();
   }
 }
 
 void CFunctionBlock::traceOutputEvent(TEventID paEOID){
-  if(barectf_is_tracing_enabled(getResource()->getTracePlatformContext().getContext())) {
-    barectf_default_trace_sendOutputEvent(this->getResource()->getTracePlatformContext().getContext(),
-                                          getFBTypeName() ?: "null",
-                                          getInstanceName() ?: "null",
-                                          static_cast<uint64_t>(paEOID));
+    if(auto& tracer = this->getResource()->getTracer(); tracer.isEnabled()){
+    tracer.traceSendOutputEvent(getFBTypeName() ?: "null",
+                            getInstanceName() ?: "null",
+                            static_cast<uint64_t>(paEOID));
   }
 }
 

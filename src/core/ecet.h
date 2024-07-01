@@ -34,7 +34,7 @@ class CEventChainExecutionThread : public CThread{
      *
      * \param paEventToAdd event of the EC to start
      */
-    void startEventChain(TEventEntry paEventToAdd);
+    virtual void startEventChain(TEventEntry paEventToAdd);
 
     /*!\brief Add an new event entry to the event chain
      *
@@ -74,6 +74,14 @@ class CEventChainExecutionThread : public CThread{
      * This list stores the necessary information for all events to deliver that occurred within this event chain.
      */
     forte::core::util::CRingBuffer<TEventEntry, cgEventChainEventListSize> mEventList;
+
+    /*! \brief List of external events that occurred during one FB's execution
+     *
+     * This list stores external events that may have occurred during the execution of a FB or during when the
+     * Event-Chain execution was sleeping. with this second list we omit the need for a mutex protection of the event
+     * list. This is a great performance gain.
+     */
+    forte::core::util::CRingBuffer<TEventEntry, cgEventChainExternalEventListSize> mExternalEventList;
 
     void mainRun();
 
@@ -120,13 +128,7 @@ class CEventChainExecutionThread : public CThread{
       mSuspendSemaphore.waitIndefinitely();
     }
 
-    /*! \brief List of external events that occurred during one FB's execution
-     *
-     * This list stores external events that may have occurred during the execution of a FB or during when the
-     * Event-Chain execution was sleeping. with this second list we omit the need for a mutex protection of the event
-     * list. This is a great performance gain.
-     */
-    forte::core::util::CRingBuffer<TEventEntry, cgEventChainExternalEventListSize> mExternalEventList;
+    
 
     //! SyncObject for protecting the list in regard to several accesses
     CSyncObject mExternalEventListSync;
