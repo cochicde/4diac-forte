@@ -46,25 +46,21 @@ std::unique_ptr<CDevice> createExampleDevice(CStringDictionary::TStringId paReso
  */
 std::vector<EventMessage> getEventMessages(std::string path);
 
+std::vector<EventMessage> getExternalEventMessage(std::string path);
+
 /**
  * @brief Print messages as babeltrace2 pretty print
  * @param messages List of messages to print
  */
 void printPrettyMessages(const std::vector<EventMessage>& messages);
 
+void prepareTraceTest(std::string paDestMetadata);
+
 BOOST_AUTO_TEST_SUITE (tracer_test)
 
 BOOST_AUTO_TEST_CASE(sequential_events_test) {
 
-  // remove previous trace files
-  std::filesystem::path destMetadata(CTF_OUTPUT_DIR);
-  destMetadata /= "metadata";
-
-  std::filesystem::remove_all(CTF_OUTPUT_DIR);
-  std::filesystem::create_directory(CTF_OUTPUT_DIR);
-  std::filesystem::copy_file(METADATA_FILE, destMetadata);
-
-  BarectfPlatformFORTE::setup(CTF_OUTPUT_DIR);
+  prepareTraceTest("metadata");
 
   // The inner scope is to make sure the destructors of the resources are 
   // called which flushes the output
@@ -129,40 +125,56 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
   expectedMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 2),0);
   BOOST_CHECK(ctfMessages != expectedMessages);
 
-  // remove recently added message
-  expectedMessages.pop_back();
+}
 
-  std::vector<EventMessage> externalEvents;
+BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
+  prepareTraceTest("metadata");
 
-  for(const auto& message : ctfMessages){
-    if(message.getEventType() == "externalEventInput"){
-      externalEvents.push_back(message);
-    }
-  }
-  // printPrettyMessages(externalEvents);
+  auto resourceName = g_nStringIdMyResource;
 
 
+  // The inner scope is to make sure the destructors of the resources are 
+  // called which flushes the output
   {
 
+    // TODO: REPLACE example with a more complex one with timers and more
+    auto device = createExampleDevice(resourceName); 
+
+    // get the resource instance out of the device
+    forte::core::TNameIdentifier id;
+    id.pushBack(g_nStringIdMyResource);
+    forte::core::TNameIdentifier::CIterator nonConstIterator(id.begin());
+    auto resource = dynamic_cast<CResource*> (device->getContainedFB(nonConstIterator));
+    
+    device->startDevice();
+    // wait for all events to be triggered
+    while(resource->getResourceEventExecution()->isProcessingEvents()){
+      // TODO: Let it run for a random amount of time to make it more realistic
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    device->changeFBExecutionState(EMGMCommandType::Stop);
+    resource->getResourceEventExecution()->joinEventChainExecutionThread();
+  }
+
+  // disable logging 
+  BarectfPlatformFORTE::setup("");
+
+  auto tracedMessages = getEventMessages(CTF_OUTPUT_DIR);
+  auto externalEvents = getExternalEventMessage(CTF_OUTPUT_DIR);
+
+  {
     CEcetFactory::setEcetNameToCreate("manual");
     CTimerHandlerFactory::setTimeHandlerNameToCreate("fakeTimer");
     CFlexibelTracer::setTracer("SomeOtherThing");
 
-
-    auto resourceName = g_nStringIdMyResource;
-
     std::vector<EventMessage> expectedGeneratedMessages;
     std::unordered_map<CStringDictionary::TStringId, std::vector<EventMessage>&> resourceToMessagesMap;
-
     resourceToMessagesMap.insert({resourceName,  expectedGeneratedMessages});
     resourceToMessagesMap.insert({g_nStringIdMyDevice,  expectedGeneratedMessages});
-
-
     CInternalTracer::setResourceOutputMap(resourceToMessagesMap); 
 
-
+    // TODO: Change to the same example used above
     auto device = createExampleDevice(resourceName);
-
 
     // get the resource instance out of the device
     forte::core::TNameIdentifier id;
@@ -197,12 +209,12 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
     resource->getResourceEventExecution()->joinEventChainExecutionThread();
 
     BOOST_TEST_INFO("Expected vs Generated: Same size ");
-    BOOST_CHECK_EQUAL(expectedGeneratedMessages.size(), expectedMessages.size());
+    BOOST_CHECK_EQUAL(expectedGeneratedMessages.size(), tracedMessages.size());
 
     // although vectors can be check directly, this granularity helps debugging in case some message is different
-    for(size_t i = 0; i < expectedMessages.size(); i++ ){
+    for(size_t i = 0; i < tracedMessages.size(); i++ ){
       BOOST_TEST_INFO("Expected vs Generated event number " + std::to_string(i));
-      BOOST_CHECK(expectedGeneratedMessages[i] == expectedMessages[i]);
+      BOOST_CHECK(expectedGeneratedMessages[i] == tracedMessages[i]);
     }
   }
 }
@@ -359,6 +371,22 @@ std::vector<EventMessage> getEventMessages(std::string path){
   return messages;	
 }
 
+std::vector<EventMessage> getExternalEventMessage(std::string path){
+
+  auto ctfMessages = getEventMessages(path);
+
+  std::vector<EventMessage> externalEvents;
+
+  for(const auto& message : ctfMessages){
+    if(message.getEventType() == "externalEventInput"){
+      externalEvents.push_back(message);
+    }
+  }
+
+  return externalEvents;
+}
+
+
 void printPrettyMessages(const std::vector<EventMessage>& messages) {
 
   // get the pretty text of a timestamp difference
@@ -388,5 +416,17 @@ void printPrettyMessages(const std::vector<EventMessage>& messages) {
       << message.getPayloadString() << std::endl;
     lastTimestamp = message.getTimestamp();
   }
+}
+
+void prepareTraceTest(std::string paDestMetadata) {
+  // remove previous trace files
+  std::filesystem::path destMetadata(CTF_OUTPUT_DIR);
+  destMetadata /= std::move(paDestMetadata);
+
+  std::filesystem::remove_all(CTF_OUTPUT_DIR);
+  std::filesystem::create_directory(CTF_OUTPUT_DIR);
+  std::filesystem::copy_file(METADATA_FILE, destMetadata);
+
+  BarectfPlatformFORTE::setup(CTF_OUTPUT_DIR);
 }
 
