@@ -33,6 +33,8 @@ class FORTE_E_RESTART final : public CEventSourceFB {
     // semaphore to ensure proper handling of STOP execution state change
     forte::arch::CSemaphore mSuspendSemaphore;
 
+    TEventID mEventToSend;
+
     void executeEvent(TEventID paEIID, CEventChainExecutionThread *const paECET) override;
 
     void readInputData(TEventID paEIID) override;

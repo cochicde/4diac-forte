@@ -50,6 +50,10 @@ public:
 
 #ifdef FORTE_TRACE_CTF
  void traceExternalEventInput(TEventID paEIID) override {
+    if(paEIID != cgExternalEventID){
+      return;
+    }
+    
     if(auto& tracer = getResource()->getTracer(); tracer.isEnabled()){
       std::vector<std::string> outputs(mInterfaceSpec->mNumDOs);
 

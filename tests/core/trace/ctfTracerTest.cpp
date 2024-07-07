@@ -42,6 +42,12 @@ std::unique_ptr<CDevice> createExampleDevice(CStringDictionary::TStringId paReso
 std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStringId paResourceName1, CStringDictionary::TStringId paResourceName2, CStringDictionary::TStringId paDeviceName = g_nStringIdMyDevice);
 
 
+std::ostream& operator<<(std::ostream &paOs, const EventMessage &paEventMessage) {
+  paOs << paEventMessage.getPayloadString();
+  return paOs;
+}
+
+
 /**
  * @brief Get the list of message from a directory containing CTF traces
  * 
@@ -66,20 +72,20 @@ void checkMessages(std::unordered_map<std::string, std::vector<EventMessage>>& p
   for(auto& [resource, expectedMessages] : paExpected){
     auto& actualMessages = paActual[resource];
 
-    BOOST_TEST_INFO("Expected vs traced: Same size ");
+    BOOST_TEST_INFO("Resource: " + resource + " Expected vs traced: Same size ");
     BOOST_CHECK_EQUAL(actualMessages.size(), expectedMessages.size());
 
       // although vectors can be check directly, this granularity helps debugging in case some message is different
     for(size_t i = 0; i < expectedMessages.size(); i++ ){
-      BOOST_TEST_INFO("Expected event number " + std::to_string(i));
-      BOOST_CHECK(actualMessages[i] == expectedMessages[i]);
+      BOOST_TEST_INFO("Resource: " + resource + " Expected event number " + std::to_string(i));
+      BOOST_CHECK_EQUAL(actualMessages[i], expectedMessages[i]);
     }
 
     // add extra event to check that the comparison fails
     expectedMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 2),0);
     BOOST_CHECK(actualMessages != expectedMessages);
 
-    // undo in case is needed again later
+    // remove the recently added message in case is needed again later
     expectedMessages.pop_back();
   }
 }
@@ -105,7 +111,6 @@ std::string getResourceNameFromTraceOutputPort(const bt_port_output*	paPort)
 BOOST_AUTO_TEST_SUITE (tracer_test)
 
 BOOST_AUTO_TEST_CASE(sequential_events_test) {
-  return;
   prepareTraceTest("metadata");
 
   auto resourceName = g_nStringIdMyResource;
@@ -138,8 +143,8 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
   // message for the device is empty
 
   // timestamp cannot properly be tested, so setting everythin to zero
-  resourceMessages.emplace_back("externalEventInput", std::make_unique<FBExternalEventPayload>("E_RESTART", "START", 0, 0),0);
-  resourceMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 0),0);
+  resourceMessages.emplace_back("externalEventInput", std::make_unique<FBExternalEventPayload>("E_RESTART", "START", 65534, 0),0);
+  resourceMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 65534),0);
   resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 0),0);
   resourceMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_CTU", "Counter", 0),0);
   resourceMessages.emplace_back("instanceData", std::make_unique<FBInstanceDataPayload>("E_CTU", "Counter", std::vector<std::string>{"1"}, std::vector<std::string>{"FALSE", "0"}, std::vector<std::string>{}, std::vector<std::string>{}), 0);
@@ -155,8 +160,8 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
   resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_CTU", "Counter", 1),0);
   resourceMessages.emplace_back("outputData", std::make_unique<FBDataPayload>("E_CTU", "Counter", 0, "FALSE"), 0);
   resourceMessages.emplace_back("outputData", std::make_unique<FBDataPayload>("E_CTU", "Counter", 1, "0"), 0);
-  resourceMessages.emplace_back("externalEventInput", std::make_unique<FBExternalEventPayload>("E_RESTART", "START", 2, 4),0);
-  resourceMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 2),0);
+  resourceMessages.emplace_back("externalEventInput", std::make_unique<FBExternalEventPayload>("E_RESTART", "START", 65534, 4),0);
+  resourceMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 65534),0);
   resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 2),0);
 
   auto ctfMessages = getEventMessages(CTF_OUTPUT_DIR);
@@ -235,10 +240,11 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
     device->startDevice();
 
     for(auto& helper : resourceHelpers){
+      uint64_t previousEventCounter = 0;
       for(auto& externalEvent : helper.externalEvents){
         auto payload = externalEvent.getPayload<FBExternalEventPayload>();
-        helper.ecet->advance(payload.mEventCounter);
-
+        helper.ecet->advance(payload.mEventCounter - previousEventCounter);
+        previousEventCounter = payload.mEventCounter;
 
         forte::core::TNameIdentifier id;
         id.pushBack(CStringDictionary::getInstance().getId(payload.mInstanceName.c_str()));
@@ -273,224 +279,332 @@ BOOST_AUTO_TEST_SUITE_END()
 
 std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStringId paResourceName1, CStringDictionary::TStringId paResourceName2, CStringDictionary::TStringId paDeviceName){
   auto device = std::make_unique<CTesterDevice>(paDeviceName);
-  auto resource1 = new EMB_RES(paResourceName1, *device);
-  auto resource2 = new EMB_RES(paResourceName2, *device);
-
-  device->addFB(resource1);
-  device->addFB(resource2);
 
 
-  resource1->initialize();
-  resource2->initialize();
-
-  auto createNetwork = [](CResource* paResource, CStringDictionary::TStringId paCycleName, 
-                                                CStringDictionary::TStringId paRandom1Name,
-                                                CStringDictionary::TStringId paRandom2Name,
-                                                CStringDictionary::TStringId paAddName,
-                                                CStringDictionary::TStringId paReal2RealName,
-                                                CStringDictionary::TStringId paPublishName)
+  // resource 1
   {
+    auto resource = new EMB_RES(paResourceName1, *device);
+    device->addFB(resource);
+    resource->initialize();
+
+    auto cycleName = g_nStringIdE_CYCLE;
+    auto ctuName = g_nStringIdE_CTU;
+    auto publishName = g_nStringIdPUBLISH_1;
+
+    BOOST_TEST_INFO(CStringDictionary::getInstance().get(paResourceName1));
+
     BOOST_TEST_INFO("Create FB Cycle");
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->addFB(CTypeLib::createFB(paCycleName, g_nStringIdE_CYCLE, *paResource)));
-    
-    BOOST_TEST_INFO("Create FB Random 1");
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->addFB(CTypeLib::createFB(paRandom1Name, g_nStringIdFB_RANDOM, *paResource)));
+    BOOST_ASSERT(EMGMResponse::Ready == resource->addFB(CTypeLib::createFB(cycleName, g_nStringIdE_CYCLE, *resource)));
+      
+    BOOST_TEST_INFO("Create FB CTU");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->addFB(CTypeLib::createFB(ctuName, g_nStringIdE_CTU, *resource)));
 
-    BOOST_TEST_INFO("Create FB Random 2");
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->addFB(CTypeLib::createFB(paRandom2Name, g_nStringIdFB_RANDOM, *paResource)));
-
-    BOOST_TEST_INFO("Create FB Add");
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->addFB(CTypeLib::createFB(paAddName, g_nStringIdF_ADD, *paResource)));
-
-    BOOST_TEST_INFO("Create FB Real2Real");
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->addFB(CTypeLib::createFB(paReal2RealName, g_nStringIdREAL2REAL, *paResource)));
-
-    BOOST_TEST_INFO("Create FB Publish_1");
-    //BOOST_ASSERT(EMGMResponse::Ready == paResource->addFB(CTypeLib::createFB(paPublishName, g_nStringIdPUBLISH_1, *paResource)));
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->addFB(CTypeLib::createFB(paPublishName, g_nStringIdFB_RANDOM, *paResource)));
+    BOOST_TEST_INFO("Create FB Publish");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->addFB(CTypeLib::createFB(publishName, g_nStringIdPUBLISH_1, *resource)));
 
     forte::core::SManagementCMD command;
     command.mCMD = EMGMCommandType::CreateConnection;
     command.mDestination = CStringDictionary::scmInvalidStringId;
 
     // Events
-
-    BOOST_TEST_INFO("Event connection: Start.COLD -> Random1.INIT");
+    BOOST_TEST_INFO("Event connection: Start.COLD -> PUBLISH.INIT");
     command.mFirstParam.pushBack(g_nStringIdSTART);
     command.mFirstParam.pushBack(g_nStringIdCOLD);
-    command.mSecondParam.pushBack(paRandom1Name);
+    command.mSecondParam.pushBack(publishName);
     command.mSecondParam.pushBack(g_nStringIdINIT);
-
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
-
-    BOOST_TEST_INFO("Event connection: Random1.INITO -> Random2.INIT");
-    command.mFirstParam.clear();
-    command.mFirstParam.pushBack(paRandom1Name);
-    command.mFirstParam.pushBack(g_nStringIdINITO);
-    command.mSecondParam.clear();
-    command.mSecondParam.pushBack(paRandom2Name);
-    command.mSecondParam.pushBack(g_nStringIdINIT);
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
-
-    BOOST_TEST_INFO("Event connection: Random2.INITO -> Publish.INIT");
-    command.mFirstParam.clear();
-    command.mFirstParam.pushBack(paRandom2Name);
-    command.mFirstParam.pushBack(g_nStringIdINITO);
-    command.mSecondParam.clear();
-    command.mSecondParam.pushBack(paPublishName);
-    command.mSecondParam.pushBack(g_nStringIdINIT);
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: Publish.INITO -> Cycle.START");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(paPublishName);
+    command.mFirstParam.pushBack(publishName);
     command.mFirstParam.pushBack(g_nStringIdINITO);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(paCycleName);
+    command.mSecondParam.pushBack(cycleName);
     command.mSecondParam.pushBack(g_nStringIdSTART);
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
-    BOOST_TEST_INFO("Event connection: Cycle.EO -> Random1.REQ");
+    BOOST_TEST_INFO("Event connection: Cycle.EO -> CTU.CU");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(paCycleName);
+    command.mFirstParam.pushBack(cycleName);
     command.mFirstParam.pushBack(g_nStringIdEO);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(paRandom1Name);
-    command.mSecondParam.pushBack(g_nStringIdREQ);
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
+    command.mSecondParam.pushBack(ctuName);
+    command.mSecondParam.pushBack(g_nStringIdCU);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
-    BOOST_TEST_INFO("Event connection: Cycle.EO -> Random2.REQ");
+    BOOST_TEST_INFO("Event connection: CTU.CUO -> Publish.REQ");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(paCycleName);
-    command.mFirstParam.pushBack(g_nStringIdEO);
+    command.mFirstParam.pushBack(ctuName);
+    command.mFirstParam.pushBack(g_nStringIdCUO);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(paRandom2Name);
+    command.mSecondParam.pushBack(publishName);
     command.mSecondParam.pushBack(g_nStringIdREQ);
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
-
-    BOOST_TEST_INFO("Event connection: Random1.CNF -> Add.REQ");
-    command.mFirstParam.clear();
-    command.mFirstParam.pushBack(paRandom1Name);
-    command.mFirstParam.pushBack(g_nStringIdCNF);
-    command.mSecondParam.clear();
-    command.mSecondParam.pushBack(paAddName);
-    command.mSecondParam.pushBack(g_nStringIdREQ);
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
-
-    BOOST_TEST_INFO("Event connection: Random2.CNF -> Add.REQ");
-    command.mFirstParam.clear();
-    command.mFirstParam.pushBack(paRandom2Name);
-    command.mFirstParam.pushBack(g_nStringIdCNF);
-    command.mSecondParam.clear();
-    command.mSecondParam.pushBack(paAddName);
-    command.mSecondParam.pushBack(g_nStringIdREQ);
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
-
-    BOOST_TEST_INFO("Event connection: Add.CNF -> Real2Real.REQ");
-    command.mFirstParam.clear();
-    command.mFirstParam.pushBack(paAddName);
-    command.mFirstParam.pushBack(g_nStringIdCNF);
-    command.mSecondParam.clear();
-    command.mSecondParam.pushBack(paReal2RealName);
-    command.mSecondParam.pushBack(g_nStringIdREQ);
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
-
-
-    BOOST_TEST_INFO("Event connection: Real2Real.CNF -> Publish.REQ");
-    command.mFirstParam.clear();
-    command.mFirstParam.pushBack(paReal2RealName);
-    command.mFirstParam.pushBack(g_nStringIdCNF);
-    command.mSecondParam.clear();
-    command.mSecondParam.pushBack(paPublishName);
-    command.mSecondParam.pushBack(g_nStringIdREQ);
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     // Data
-
-    BOOST_TEST_INFO("Data connection: Random1.VAL -> ADD.IN1");
+    BOOST_TEST_INFO("Event connection: CTU.CV -> Publish.SD_1");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(paRandom1Name);
-    command.mFirstParam.pushBack(g_nStringIdVAL);
+    command.mFirstParam.pushBack(ctuName);
+    command.mFirstParam.pushBack(g_nStringIdCV);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(paAddName);
-    command.mSecondParam.pushBack(g_nStringIdIN1);
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
-
-    BOOST_TEST_INFO("Data connection: Random2.VAL -> ADD.IN2");
-    command.mFirstParam.clear();
-    command.mFirstParam.pushBack(paRandom2Name);
-    command.mFirstParam.pushBack(g_nStringIdVAL);
-    command.mSecondParam.clear();
-    command.mSecondParam.pushBack(paAddName);
-    command.mSecondParam.pushBack(g_nStringIdIN2);
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
-
-    BOOST_TEST_INFO("Data connection: Add.OUT -> Real2Real.IN");
-    command.mFirstParam.clear();
-    command.mFirstParam.pushBack(paAddName);
-    command.mFirstParam.pushBack(g_nStringIdOUT);
-    command.mSecondParam.clear();
-    command.mSecondParam.pushBack(paReal2RealName);
-    command.mSecondParam.pushBack(g_nStringIdIN);
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
-
-    // BOOST_TEST_INFO("Data connection: Real2Real.OUT -> Publish.SD_1");
-    // command.mFirstParam.clear();
-    // command.mFirstParam.pushBack(paReal2RealName);
-    // command.mFirstParam.pushBack(g_nStringIdOUT);
-    // command.mSecondParam.clear();
-    // command.mSecondParam.pushBack(paPublishName);
-    // command.mSecondParam.pushBack(g_nStringIdSD_1);
-    // BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
+    command.mSecondParam.pushBack(publishName);
+    command.mSecondParam.pushBack(g_nStringIdSD_1);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     // Literals
-
     command.mCMD = EMGMCommandType::Write;
 
     BOOST_TEST_INFO("Literal: Cycle.DT -> T#200ms");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(paCycleName);
+    command.mFirstParam.pushBack(cycleName);
     command.mFirstParam.pushBack(g_nStringIdDT);
     command.mAdditionalParams = CIEC_STRING("T#200ms");
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
-    BOOST_TEST_INFO("Literal: Random1.SEED -> 4");
+    BOOST_TEST_INFO("Literal: CTU.PV -> 0");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(paRandom1Name);
-    command.mFirstParam.pushBack(g_nStringIdSEED);
-    command.mAdditionalParams = CIEC_STRING("4");
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
+    command.mFirstParam.pushBack(ctuName);
+    command.mFirstParam.pushBack(g_nStringIdPV);
+    command.mAdditionalParams = CIEC_STRING("0");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
-    BOOST_TEST_INFO("Literal: Random2.SEED -> 10");
+
+    BOOST_TEST_INFO("Literal: Pulbish.QI -> TRUE");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(paRandom2Name);
-    command.mFirstParam.pushBack(g_nStringIdSEED);
-    command.mAdditionalParams = CIEC_STRING("10");
-    BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
+    command.mFirstParam.pushBack(publishName);
+    command.mFirstParam.pushBack(g_nStringIdQI);
+    command.mAdditionalParams = CIEC_STRING("TRUE");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
-    // BOOST_TEST_INFO("Literal: Publish.QI -> TRUE");
-    // command.mFirstParam.clear();
-    // command.mFirstParam.pushBack(paPublishName);
-    // command.mFirstParam.pushBack(g_nStringIdQI);
-    // command.mAdditionalParams = CIEC_STRING("TRUE");
-    // BOOST_ASSERT(EMGMResponse::Ready == paResource->executeMGMCommand(command));
 
-  };
+    BOOST_TEST_INFO("Literal: Pulbish.ID -> 239.0.0.1:61000");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(publishName);
+    command.mFirstParam.pushBack(g_nStringIdID);
+    command.mAdditionalParams = CIEC_STRING("239.0.0.1:61000");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
-  createNetwork(resource1, g_nStringIdE_CYCLE, 
-                          g_nStringIdFB_RANDOM,
-                          g_nStringIdFB_RANDOM_1,
-                          g_nStringIdF_ADD,
-                          g_nStringIdREAL2REAL,
-                          g_nStringIdPUBLISH_1);
-  
-  createNetwork(resource2, g_nStringIdE_CYCLE_1, 
-                          g_nStringIdFB_RANDOM_2,
-                          g_nStringIdFB_RANDOM_3,
-                          g_nStringIdF_ADD_1,
-                          g_nStringIdREAL2REAL_1,
-                          g_nStringIdPUBLISH_2);
+  }
 
+  // resource 2
+  {
+    auto resource = new EMB_RES(paResourceName2, *device);
+
+    device->addFB(resource);
+    resource->initialize();
+
+    auto cycleName = g_nStringIdE_CYCLE;
+    auto ctuName = g_nStringIdE_CTU;
+    auto subscribeName = g_nStringIdSUBSCRIBE_1;
+    auto addName = g_nStringIdADD;
+    auto mulName = g_nStringIdMUL;
+    auto uint2uintFirst = g_nStringIdUINT2UINT;
+    auto uint2uintSecond = g_nStringIdUINT2UINT_1;
+    auto uint2uintThird = g_nStringIdUINT2UINT_2;
+
+    BOOST_TEST_INFO(CStringDictionary::getInstance().get(paResourceName2));
+
+    BOOST_TEST_INFO("Create FB Subscribe");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->addFB(CTypeLib::createFB(subscribeName, g_nStringIdSUBSCRIBE_1, *resource)));
+
+    BOOST_TEST_INFO("Create FB Cycle");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->addFB(CTypeLib::createFB(cycleName, g_nStringIdE_CYCLE, *resource)));
+      
+    BOOST_TEST_INFO("Create FB CTU");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->addFB(CTypeLib::createFB(ctuName, g_nStringIdE_CTU, *resource)));
+
+    BOOST_TEST_INFO("Create FB ADD");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->addFB(CTypeLib::createFB(addName, g_nStringIdF_ADD, *resource)));
+
+    BOOST_TEST_INFO("Create FB MUL");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->addFB(CTypeLib::createFB(mulName, g_nStringIdF_MUL, *resource)));
+
+    BOOST_TEST_INFO("Create FB UINT2UINT 1");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->addFB(CTypeLib::createFB(uint2uintFirst, g_nStringIdUINT2UINT, *resource)));
+
+    BOOST_TEST_INFO("Create FB UINT2UINT 2");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->addFB(CTypeLib::createFB(uint2uintSecond, g_nStringIdUINT2UINT, *resource)));
+
+    BOOST_TEST_INFO("Create FB UINT2UINT 3");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->addFB(CTypeLib::createFB(uint2uintThird, g_nStringIdUINT2UINT, *resource)));
+
+    forte::core::SManagementCMD command;
+    command.mCMD = EMGMCommandType::CreateConnection;
+    command.mDestination = CStringDictionary::scmInvalidStringId;
+
+    // Events
+    BOOST_TEST_INFO("Event connection: Start.COLD -> SUBSCRIBE.INIT");
+    command.mFirstParam.pushBack(g_nStringIdSTART);
+    command.mFirstParam.pushBack(g_nStringIdCOLD);
+    command.mSecondParam.pushBack(subscribeName);
+    command.mSecondParam.pushBack(g_nStringIdINIT);
+
+    BOOST_TEST_INFO("Event connection: SUBSCRIBE.INIT -> Cycle.START");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(subscribeName);
+    command.mFirstParam.pushBack(g_nStringIdINITO);
+    command.mSecondParam.clear();
+    command.mSecondParam.pushBack(cycleName);
+    command.mSecondParam.pushBack(g_nStringIdSTART);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+    
+    BOOST_TEST_INFO("Event connection: Cycle.EO -> CTU.CU");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(cycleName);
+    command.mFirstParam.pushBack(g_nStringIdEO);
+    command.mSecondParam.clear();
+    command.mSecondParam.pushBack(ctuName);
+    command.mSecondParam.pushBack(g_nStringIdCU);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+    BOOST_TEST_INFO("Event connection: CTU.CUO -> ADD.REQ");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(ctuName);
+    command.mFirstParam.pushBack(g_nStringIdCUO);
+    command.mSecondParam.clear();
+    command.mSecondParam.pushBack(addName);
+    command.mSecondParam.pushBack(g_nStringIdREQ);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+    BOOST_TEST_INFO("Event connection: ADD.CNF -> UINT2UINT_3.REQ");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(addName);
+    command.mFirstParam.pushBack(g_nStringIdCNF);
+    command.mSecondParam.clear();
+    command.mSecondParam.pushBack(uint2uintThird);
+    command.mSecondParam.pushBack(g_nStringIdREQ);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+    BOOST_TEST_INFO("Event connection: SUBSCRIBE.IND -> UINT2UINT_1.REQ");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(subscribeName);
+    command.mFirstParam.pushBack(g_nStringIdIND);
+    command.mSecondParam.clear();
+    command.mSecondParam.pushBack(uint2uintFirst);
+    command.mSecondParam.pushBack(g_nStringIdREQ);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+    BOOST_TEST_INFO("Event connection: UINT2UINT_1.CNF -> MUL.REQ");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(uint2uintFirst);
+    command.mFirstParam.pushBack(g_nStringIdCNF);
+    command.mSecondParam.clear();
+    command.mSecondParam.pushBack(mulName);
+    command.mSecondParam.pushBack(g_nStringIdREQ);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+    BOOST_TEST_INFO("Event connection: MUL.CNF -> UINT2UINT_2.REQ");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(mulName);
+    command.mFirstParam.pushBack(g_nStringIdCNF);
+    command.mSecondParam.clear();
+    command.mSecondParam.pushBack(uint2uintSecond);
+    command.mSecondParam.pushBack(g_nStringIdREQ);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+    BOOST_TEST_INFO("Event connection: UINT2UINT_2.CNF -> ADD.REQ");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(uint2uintSecond);
+    command.mFirstParam.pushBack(g_nStringIdCNF);
+    command.mSecondParam.clear();
+    command.mSecondParam.pushBack(addName);
+    command.mSecondParam.pushBack(g_nStringIdREQ);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+    // Data
+    BOOST_TEST_INFO("Event connection: CTU.CV -> ADD.IN1");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(ctuName);
+    command.mFirstParam.pushBack(g_nStringIdCV);
+    command.mSecondParam.clear();
+    command.mSecondParam.pushBack(addName);
+    command.mSecondParam.pushBack(g_nStringIdIN1);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+    BOOST_TEST_INFO("Event connection: ADD.OUT -> UINT2UINT_3.IN");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(addName);
+    command.mFirstParam.pushBack(g_nStringIdOUT);
+    command.mSecondParam.clear();
+    command.mSecondParam.pushBack(uint2uintThird);
+    command.mSecondParam.pushBack(g_nStringIdIN);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+    BOOST_TEST_INFO("Event connection: SUBSCRIBE.RD_1 -> UINT2UINT_1.IN");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(subscribeName);
+    command.mFirstParam.pushBack(g_nStringIdRD_1);
+    command.mSecondParam.clear();
+    command.mSecondParam.pushBack(uint2uintFirst);
+    command.mSecondParam.pushBack(g_nStringIdIN);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+    BOOST_TEST_INFO("Event connection: UINT2UINT_1.OUT -> MUL.IN2");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(uint2uintFirst);
+    command.mFirstParam.pushBack(g_nStringIdOUT);
+    command.mSecondParam.clear();
+    command.mSecondParam.pushBack(mulName);
+    command.mSecondParam.pushBack(g_nStringIdIN2);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+    BOOST_TEST_INFO("Event connection: MUL.OUT -> UINT2UINT_2.IN");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(mulName);
+    command.mFirstParam.pushBack(g_nStringIdOUT);
+    command.mSecondParam.clear();
+    command.mSecondParam.pushBack(uint2uintSecond);
+    command.mSecondParam.pushBack(g_nStringIdIN);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+    BOOST_TEST_INFO("Event connection: UINT2UINT_2.OUT -> ADD.IN2");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(uint2uintSecond);
+    command.mFirstParam.pushBack(g_nStringIdOUT);
+    command.mSecondParam.clear();
+    command.mSecondParam.pushBack(addName);
+    command.mSecondParam.pushBack(g_nStringIdIN2);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+    // Literals
+    command.mCMD = EMGMCommandType::Write;
+
+    BOOST_TEST_INFO("Literal: Cycle.DT -> T#200ms");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(cycleName);
+    command.mFirstParam.pushBack(g_nStringIdDT);
+    command.mAdditionalParams = CIEC_STRING("T#200ms");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+    BOOST_TEST_INFO("Literal: CTU.PV -> 0");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(ctuName);
+    command.mFirstParam.pushBack(g_nStringIdPV);
+    command.mAdditionalParams = CIEC_STRING("0");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+
+    BOOST_TEST_INFO("Literal: SUBSCRIBE.QI -> TRUE");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(subscribeName);
+    command.mFirstParam.pushBack(g_nStringIdQI);
+    command.mAdditionalParams = CIEC_STRING("TRUE");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+
+    BOOST_TEST_INFO("Literal: Pulbish.ID -> 239.0.0.1:61000");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(subscribeName);
+    command.mFirstParam.pushBack(g_nStringIdID);
+    command.mAdditionalParams = CIEC_STRING("239.0.0.1:61000");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+
+    BOOST_TEST_INFO("Literal: MUL.IN1 -> UINT#10");
+    command.mFirstParam.clear();
+    command.mFirstParam.pushBack(mulName);
+    command.mFirstParam.pushBack(g_nStringIdIN1);
+    command.mAdditionalParams = CIEC_STRING("UINT#10");
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
+  }
 
   return device;
 }
