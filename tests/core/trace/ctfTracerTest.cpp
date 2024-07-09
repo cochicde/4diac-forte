@@ -189,9 +189,9 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
     // wait for all events to be triggered
 
     // TODO: Let it run for a random amount of time to make it more realistic
-    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(4000));
 
-    device->changeFBExecutionState(EMGMCommandType::Stop);
+    device->changeFBExecutionState(EMGMCommandType::Kill);
     resource1->getResourceEventExecution()->joinEventChainExecutionThread();
     resource2->getResourceEventExecution()->joinEventChainExecutionThread();
   }
@@ -229,7 +229,7 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
       std::vector<EventMessage>& externalEvents;
     };
 
-    auto resourceNames = std::vector<CStringDictionary::TStringId>({resource1Name, resource2Name});
+    auto resourceNames = std::vector<CStringDictionary::TStringId>({resource2Name, resource1Name});
     
     std::vector<helper> resourceHelpers;
 
@@ -244,6 +244,7 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
       for(auto& externalEvent : helper.externalEvents){
         auto payload = externalEvent.getPayload<FBExternalEventPayload>();
         helper.ecet->advance(payload.mEventCounter - previousEventCounter);
+//        BOOST_ASSERT(0 == helper.ecet->advance(payload.mEventCounter - previousEventCounter));
         previousEventCounter = payload.mEventCounter;
 
         forte::core::TNameIdentifier id;
@@ -253,13 +254,13 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
 
         helper.ecet->insertFront(CConnectionPoint(fb, payload.mEventId));
       }
-      auto releaseEcet = [&helper](TEventEntry){
+      auto releaseEcet = [helper](TEventEntry){
         helper.ecet->removeControllFromOutside();
       };
       helper.ecet->allowInternallyGeneratedEventChains(true, releaseEcet);
     }
 
-    device->changeFBExecutionState(EMGMCommandType::Stop);
+    device->changeFBExecutionState(EMGMCommandType::Kill);
 
     for(auto& helper : resourceHelpers){
       helper.resource->getResourceEventExecution()->joinEventChainExecutionThread();
@@ -279,7 +280,6 @@ BOOST_AUTO_TEST_SUITE_END()
 
 std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStringId paResourceName1, CStringDictionary::TStringId paResourceName2, CStringDictionary::TStringId paDeviceName){
   auto device = std::make_unique<CTesterDevice>(paDeviceName);
-
 
   // resource 1
   {
@@ -312,6 +312,7 @@ std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStrin
     command.mFirstParam.pushBack(g_nStringIdCOLD);
     command.mSecondParam.pushBack(publishName);
     command.mSecondParam.pushBack(g_nStringIdINIT);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: Publish.INITO -> Cycle.START");
     command.mFirstParam.clear();
@@ -437,6 +438,7 @@ std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStrin
     command.mFirstParam.pushBack(g_nStringIdCOLD);
     command.mSecondParam.pushBack(subscribeName);
     command.mSecondParam.pushBack(g_nStringIdINIT);
+    BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: SUBSCRIBE.INIT -> Cycle.START");
     command.mFirstParam.clear();

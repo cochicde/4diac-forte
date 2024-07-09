@@ -55,6 +55,9 @@ void CManualEventExecutionThread::insertFront(TEventEntry paEvent){
     mEventList.push(*temp.pop());
   }
   mProcessingEvents = true;
+  if(!mProcessingEvents) {
+    resumeSelfSuspend();
+  }
 }
 
 size_t CManualEventExecutionThread::advance(size_t paNumberOfEvents){

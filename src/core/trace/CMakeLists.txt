@@ -44,8 +44,12 @@ if(FORTE_TRACE_CTF_TEST)
   forte_add_sourcefile_hcpp(EventMessage)
   forte_add_sourcefile_hcpp(internalTracer)
   forte_add_sourcefile_hcpp(flexibleTracer)
+  forte_add_sourcefile_hcpp(manualHandler)
 
-  
+  forte_add_network_layer(MANUAL ON "manual" CManualComLayer manualComLayer "Enable Manual com layer")
+  forte_add_handler(CManualHandler manualHandler)
+
+
   set(FORTE_TRACER_INCLUDE flexibleTracer.h)
   set(FORTE_TRACER CFlexibelTracer)
 
