@@ -67,6 +67,3 @@ void CDeviceExecution::disableHandlers() {
   }
 }
 
-CDevice& CDeviceExecution::getDevice(){
-  return mDevice;
-}

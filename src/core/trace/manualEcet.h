@@ -18,6 +18,8 @@
 #include <functional>
 #include <mutex>
 #include <condition_variable>
+#include <set>
+#include <optional>
 
 class CManualEventExecutionThread : public CEventChainExecutionThread{
   public:
@@ -28,9 +30,12 @@ class CManualEventExecutionThread : public CEventChainExecutionThread{
 
     void startEventChain(TEventEntry paEventToAdd) override;
 
-    void clearExternal();
+    void allowInternallyGeneratedEventChains(bool paAllow, std::optional<std::function<void(TEventEntry)>> paCallback = std::nullopt);
 
-    void allowInternallyGeneratedEventChains(bool allow, std::function<void(TEventEntry)> callback);
+    void triggerOutputEvent(TEventEntry paEvent);
+
+    static std::set<CStringDictionary::TStringId> smValidTypes;
+
 
     /**
      * @brief Advance the execution a certain amount of events. 
@@ -42,11 +47,21 @@ class CManualEventExecutionThread : public CEventChainExecutionThread{
     */
     size_t advance(size_t paNumberOfEvents);
 
+    void advanceUntil(size_t paEventPosition);
+
+    void triggerEventOnCounter(TEventEntry paEvent, size_t paEventCounter, const std::vector<std::string>& paOutputs);
+
     void removeControllFromOutside();
 
+    void mainRun();
 private:
 
+    void processEvent(TEventEntry *event);
+
+
     void defaultEventChainCallback(TEventEntry paEventEntry);
+
+    void setDefaultEventChainCallback();
 
     void run() override;
     std::mutex mMutex;
@@ -55,6 +70,7 @@ private:
     bool mIsControlledFromOutside{true};
     bool mAllowInternallyGeneratedEventChains{false};
     std::function<void(TEventEntry)> mCallback;
+
 };
 
 #endif /*_TESTS_CORE_MANUALECET_H_*/

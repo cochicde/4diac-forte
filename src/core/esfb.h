@@ -48,32 +48,6 @@ public:
 
   TEventEntry *getEventSourceEventEntry() { return &mEventSourceEventEntry; };
 
-#ifdef FORTE_TRACE_CTF
- void traceExternalEventInput(TEventID paEIID) override {
-    if(paEIID != cgExternalEventID){
-      return;
-    }
-    
-    if(auto& tracer = getResource()->getTracer(); tracer.isEnabled()){
-      std::vector<std::string> outputs(mInterfaceSpec->mNumDOs);
-
-      for(TPortId i = 0; i < outputs.size(); ++i) {
-        CIEC_ANY *value = getDO(i);
-        std::string &valueString = outputs[i];
-        valueString.reserve(value->getToStringBufferSize());
-        value->toString(valueString.data(), valueString.capacity());
-      }
-
-      tracer.traceExternalInputEvent(
-            getFBTypeName() ?: "null",
-            getInstanceName() ?: "null",
-            static_cast<uint64_t>(paEIID),
-            mEventChainExecutor->mEventCounter,
-            outputs);
-  }
- }
-#endif // FORTE_TRACE_CTF
-
 };
 
 #define EVENT_SOURCE_FUNCTION_BLOCK_CTOR(fbclass) \

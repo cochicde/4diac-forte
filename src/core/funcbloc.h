@@ -296,12 +296,6 @@ class CFunctionBlock {
     void receiveInputEvent(TEventID paEIID, CEventChainExecutionThread *paExecEnv) {
       FORTE_TRACE("InputEvent: Function Block (%s) got event: %d (maxid: %d)\n", CStringDictionary::getInstance().get(getInstanceNameId()), paEIID, mInterfaceSpec->mNumEIs - 1);
 
-      #ifdef FORTE_TRACE_CTF
-        class CEventSource;
-        traceExternalEventInput(paEIID);
-        traceInputEvent(paEIID);
-      #endif
-
       if(E_FBStates::Running == getState()){
         if(paEIID < mInterfaceSpec->mNumEIs) {
           readInputData(paEIID);
@@ -309,6 +303,9 @@ class CFunctionBlock {
                 // Count Event for monitoring
                 mEIMonitorCount[paEIID]++;
           #endif //FORTE_SUPPORT_MONITORING
+          #ifdef FORTE_TRACE_CTF
+            traceInputEvent(paEIID);
+          #endif
         }
         executeEvent(paEIID, paExecEnv);
       }
@@ -462,7 +459,9 @@ class CFunctionBlock {
     CFunctionBlock(forte::core::CFBContainer &paContainer, const SFBInterfaceSpec *paInterfaceSpec, CStringDictionary::TStringId paInstanceNameId);
 
     static TPortId getPortId(CStringDictionary::TStringId paPortNameId, TPortId paMaxPortNames, const CStringDictionary::TStringId *paPortNames);
-
+   #ifdef FORTE_TRACE_CTF
+public:
+   #endif
 
     /*!\brief Function to send an output event of the FB.
      *
@@ -473,21 +472,26 @@ class CFunctionBlock {
     void sendOutputEvent(TEventID paEO, CEventChainExecutionThread * const paECET){
       FORTE_TRACE("OutputEvent: Function Block sending event: %d (maxid: %d)\n", paEO, mInterfaceSpec->mNumEOs - 1);
 
-      #ifdef FORTE_TRACE_CTF
-        traceOutputEvent(paEO);
-      #endif
-
       if(paEO < mInterfaceSpec->mNumEOs) {
         writeOutputData(paEO);
+        #ifdef FORTE_TRACE_CTF
+          // don't trace unconnected outputs
+          if(getEOConUnchecked(static_cast<TPortId>(paEO))->getDestinationList().size() != 0){
+            traceOutputEvent(paEO, paECET);
+          }
+        #endif
         getEOConUnchecked(static_cast<TPortId>(paEO))->triggerEvent(paECET);
 
         #ifdef FORTE_SUPPORT_MONITORING
             // Count Event for monitoring
             mEOMonitorCount[paEO]++;
         #endif //FORTE_SUPPORT_MONITORING
+
       }
     }
-
+  #ifdef FORTE_TRACE_CTF
+protected:
+   #endif
     /*!\brief Function to read data from an input connection into a variable of the FB.
      *
      * \param paValue Variable to read into.
@@ -690,8 +694,8 @@ class CFunctionBlock {
 
 #ifdef FORTE_TRACE_CTF
     void traceInputEvent(TEventID paEIID);
-    void traceOutputEvent(TEventID paEOID);
-    virtual void traceExternalEventInput(TEventID ) {};
+    void traceOutputEvent(TEventID paEOID, CEventChainExecutionThread * const paECET);
+    friend class CManualEventExecutionThread;
 #endif
     //! the instance name of the object
     CStringDictionary::TStringId mFBInstanceName;

@@ -15,6 +15,8 @@
  *******************************************************************************/
 
 #include "flexibleTracer.h"
+#include "barectf_platform_forte.h"
+#include "internalTracer.h"
 
 std::string CFlexibelTracer::mCurrentTracer;
 
@@ -38,8 +40,8 @@ void CFlexibelTracer::traceReceiveInputEvent(std::string paTypeName, std::string
   mTracer->traceReceiveInputEvent(paTypeName, paInstanceName, paEventId);
 }
 
-void CFlexibelTracer::traceSendOutputEvent(std::string paTypeName, std::string paInstanceName, const uint64_t paEventId) {
-  mTracer->traceSendOutputEvent(paTypeName, paInstanceName, paEventId);
+void CFlexibelTracer::traceSendOutputEvent(std::string paTypeName, std::string paInstanceName, const uint64_t paEventId, const uint64_t paEventCounter, const std::vector<std::string>& paOutputs) {
+  mTracer->traceSendOutputEvent(paTypeName, paInstanceName, paEventId, paEventCounter, paOutputs);
 }
 
 void CFlexibelTracer::traceInputData(std::string paTypeName, std::string paInstanceName, uint64_t paDataId, std::string paValue) {
@@ -49,15 +51,6 @@ void CFlexibelTracer::traceInputData(std::string paTypeName, std::string paInsta
 void CFlexibelTracer::traceOutputData(std::string paTypeName, std::string paInstanceName, uint64_t paDataId, std::string paValue) {
   mTracer->traceOutputData(paTypeName, paInstanceName, paDataId, paValue);
 }
-
-void CFlexibelTracer::traceExternalInputEvent(
-  std::string paTypeName, 
-  std::string paInstanceName,
-  uint64_t paEventId,
-  uint64_t paEventCounter, 
-  const std::vector<std::string>& paOutputs) {
-    mTracer->traceExternalInputEvent(paTypeName, paInstanceName, paEventId, paEventCounter, paOutputs);
-  }
 
 bool CFlexibelTracer::isEnabled() {
   return mTracer->isEnabled();

@@ -5,14 +5,21 @@
 #include <string>
 #include <vector>
 
+#include <iostream>
+
 class AbstractPayload;
 
 class EventMessage {
 public:
   EventMessage(std::string paEventType, std::unique_ptr<AbstractPayload> paPayload, int64_t paTimestamp);
 
+  virtual ~EventMessage() = default;
+
   EventMessage(const EventMessage& paOther);
   EventMessage& operator=(const EventMessage& paOther);
+
+  EventMessage(EventMessage&& paOther) = default;
+  EventMessage& operator=(EventMessage&& paOther) = default;
 
   std::string getPayloadString() const;
 
@@ -23,7 +30,9 @@ public:
   bool operator==(const EventMessage& paOther) const;
 
   template<typename T>
-  T getPayload();
+  std::unique_ptr<T> getPayload() const;
+
+  std::string getTypeName() const;
 
   std::string getEventType() const;
 private:
@@ -36,13 +45,21 @@ class AbstractPayload {
 public:
   AbstractPayload(std::string paTypeName, std::string paInstanceName);
 
+  virtual ~AbstractPayload() = default;
+
+  AbstractPayload(const AbstractPayload&) = default;
+  AbstractPayload& operator=(const AbstractPayload&) = default;
+
+  AbstractPayload(AbstractPayload&) = default;
+  AbstractPayload& operator=(AbstractPayload&&) = default;
+
+
   std::string getString() const;
 
-  virtual std::unique_ptr<AbstractPayload> clone() = 0;
+  virtual std::unique_ptr<AbstractPayload> clone() const = 0;
 
   bool operator==(const AbstractPayload& paOther) const;
 
-  virtual ~AbstractPayload() = default;
 
 // protected:
   virtual bool specificPayloadEqual(const AbstractPayload& paOther) const = 0;
@@ -53,14 +70,13 @@ public:
   std::string mInstanceName;
 };
 
-class FBEventPayload : public AbstractPayload {
+class FBInputEventPayload : public AbstractPayload {
 public:
-  FBEventPayload(std::string paTypeName, std::string paInstanceName, const uint64_t paEventId);
+  FBInputEventPayload(std::string paTypeName, std::string paInstanceName, const uint64_t paEventId);
 
 private:
 
-  std::unique_ptr<AbstractPayload> clone() override;
-
+  std::unique_ptr<AbstractPayload> clone() const override;
 
   std::string specificPayloadString() const override;
 
@@ -69,12 +85,27 @@ private:
   uint64_t mEventId;
 };
 
+class FBOutputEventPayload : public AbstractPayload {
+public:
+  FBOutputEventPayload(std::string paTypeName, std::string paInstanceName, const uint64_t paEventId, uint64_t paEventCounter, const std::vector<std::string>& paOutputs);
+
+  std::unique_ptr<AbstractPayload> clone() const override;
+
+  std::string specificPayloadString() const override;
+
+  bool specificPayloadEqual(const AbstractPayload& paOther) const override;
+ 
+  uint64_t mEventId;
+  uint64_t mEventCounter;
+  std::vector<std::string> mOutputs;
+};
+
 class FBDataPayload : public AbstractPayload {
 public:
   FBDataPayload(std::string paTypeName, std::string paInstanceName, uint64_t paDataId, std::string paValue);
 
 private:
-  std::unique_ptr<AbstractPayload> clone() override;
+  std::unique_ptr<AbstractPayload> clone() const override;
 
   std::string specificPayloadString() const override;
 
@@ -94,7 +125,7 @@ public:
 
 private:
 
-  std::unique_ptr<AbstractPayload> clone() override;
+  std::unique_ptr<AbstractPayload> clone() const override;
 
   std::string specificPayloadString() const override;
 
@@ -106,31 +137,9 @@ private:
   std::vector<std::string> mInternalFB;
 };
 
-class FBExternalEventPayload : public AbstractPayload {
-public:
-  FBExternalEventPayload(std::string paTypeName, std::string paInstanceName,
-        uint64_t paEventId,
-        uint64_t paEventCounter, 
-        const std::vector<std::string>& paOutputs = {});
-
-//private:
-
-  std::unique_ptr<AbstractPayload> clone() override;
-
-  std::string specificPayloadString() const override;
-
-  bool specificPayloadEqual(const AbstractPayload& paOther) const override;
-
-  uint64_t mEventId;
-  uint64_t mEventCounter;
-  std::vector<std::string> mOutputs;
-};
-
-
-  template<typename T>
-  T EventMessage::getPayload() {
-    return *dynamic_cast<T*>(mPayload->clone().get());
-  }
-
+template<typename T>
+std::unique_ptr<T> EventMessage::getPayload() const {
+  return std::unique_ptr<T>(dynamic_cast<T*>(mPayload->clone().release()));
+}
 
 #endif //  _FORTE_TESTS_CORE_TRACE_EVENT_MESSAGE_H_

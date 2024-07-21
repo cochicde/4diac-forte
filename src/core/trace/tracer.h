@@ -22,16 +22,12 @@ class CTracer {
 
     virtual void traceReceiveInputEvent(std::string paTypeName, std::string paInstanceName, const uint64_t paEventId) = 0;
 
-    virtual void traceSendOutputEvent(std::string paTypeName, std::string paInstanceName, const uint64_t paEventId) = 0;
+    virtual void traceSendOutputEvent(std::string paTypeName, std::string paInstanceName, const uint64_t paEventId, const uint64_t paEventCounter, const std::vector<std::string>& paOutputs) = 0;
 
     virtual void traceInputData(std::string paTypeName, std::string paInstanceName, uint64_t paDataId, std::string paValue) = 0;
 
     virtual void traceOutputData(std::string paTypeName, std::string paInstanceName, uint64_t paDataId, std::string paValue) = 0;
-
-    virtual void traceExternalInputEvent(std::string paTypeName, std::string paInstanceName,
-        uint64_t paEventId,
-        uint64_t paEventCounter, 
-        const std::vector<std::string>& paOutputs = {}) = 0;
+    
 };
 
 #endif // TRACE_TRACER_H

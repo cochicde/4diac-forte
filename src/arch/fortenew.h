@@ -19,7 +19,7 @@
 #include <new>
 
 
-#ifndef FORTE_USE_DEFAULT_NEW_AND_DELETE
+#ifdef FORTE_USE_DEFAULT_NEW_AND_DELETE
 //With this define platforms can use the default new and delete operators provided by the standard library
 //It should be set in the fortealloc.h file
 //By default, forte is built using these implementations. See https://bugs.eclipse.org/bugs/show_bug.cgi?id=544048
@@ -31,7 +31,7 @@
  *
  * TODO try std new with nothrow.
  */
-
+sdfs
 #if __cplusplus >= 201103L || _MSVC_LANG >= 201103L //stdc11
 inline
 void* operator new(size_t paSize) {

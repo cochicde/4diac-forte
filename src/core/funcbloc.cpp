@@ -363,13 +363,15 @@ void CFunctionBlock::readData(size_t paDINum, CIEC_ANY& paValue, const CDataConn
 #endif //FORTE_SUPPORT_MONITORING
   if(auto& tracer = getResource()->getTracer(); tracer.isEnabled()){
     std::string valueString;
-    valueString.reserve(paValue.getToStringBufferSize());
-    paValue.toString(valueString.data(), valueString.capacity());
-    
+    auto size = paValue.getToStringBufferSize();
+    char buffer[size];
+    buffer[paValue.toString(buffer, size)] = '\0';
+    valueString.assign(buffer);
+
     tracer.traceInputData(getFBTypeName() ?: "null",
                           getInstanceName() ?: "null",
                           static_cast<uint64_t>(paDINum), 
-                          valueString.c_str());
+                          valueString);
   }
 }
 #endif //FORTE_TRACE_CTF
@@ -390,13 +392,15 @@ void CFunctionBlock::writeData(size_t paDONum, CIEC_ANY& paValue, CDataConnectio
   }
   if(auto& tracer = getResource()->getTracer(); tracer.isEnabled()){
     std::string valueString;
-    valueString.reserve(paValue.getToStringBufferSize());
-    paValue.toString(valueString.data(), valueString.capacity());
-    
+    auto size = paValue.getToStringBufferSize();
+    char buffer[size];
+    buffer[paValue.toString(buffer, size)] = '\0';
+    valueString.assign(buffer);
+
     tracer.traceOutputData(getFBTypeName() ?: "null",
                           getInstanceName() ?: "null",
                           static_cast<uint64_t>(paDONum), 
-                          valueString.c_str());
+                          valueString);
   }
 }
 #endif //FORTE_TRACE_CTF
@@ -703,12 +707,24 @@ void CFunctionBlock::traceInputEvent(TEventID paEIID){
     traceInstanceData();
   }
 }
+#include "ecet.h"
+void CFunctionBlock::traceOutputEvent(TEventID paEOID, CEventChainExecutionThread * const paECET){
+  if(auto& tracer = this->getResource()->getTracer(); tracer.isEnabled()){
+    std::vector<std::string> outputs(mInterfaceSpec->mNumDOs);
 
-void CFunctionBlock::traceOutputEvent(TEventID paEOID){
-    if(auto& tracer = this->getResource()->getTracer(); tracer.isEnabled()){
+    for(TPortId i = 0; i < outputs.size(); ++i) {
+      CIEC_ANY *value = getDO(i);
+      auto size = value->getToStringBufferSize();
+      char buffer[size];
+      buffer[value->toString(buffer, size)] = '\0';
+      outputs[i].assign(buffer);
+    }
+
     tracer.traceSendOutputEvent(getFBTypeName() ?: "null",
                             getInstanceName() ?: "null",
-                            static_cast<uint64_t>(paEOID));
+                            static_cast<uint64_t>(paEOID),
+                            paECET->mEventCounter,
+                            outputs);
   }
 }
 

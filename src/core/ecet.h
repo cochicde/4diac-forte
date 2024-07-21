@@ -40,10 +40,15 @@ class CEventChainExecutionThread : public CThread{
      *
      * \param paEventToAdd new event entry
      */
-    void addEventEntry(TEventEntry paEventToAdd){
+    virtual void addEventEntry(TEventEntry paEventToAdd){
       if(!mEventList.push(paEventToAdd)){
         DEVLOG_ERROR("Event queue is full, event dropped!\n");
       }
+#ifdef FORTE_TRACE_CTF
+      else if(paEventToAdd.mPortId != cgExternalEventID){
+        mEventCounter++; 
+      }
+#endif // FORTE_TRACE_CTF
     }
 
     /*!\brief allow to start, stop, and kill the execution of the event chain execution thread
@@ -95,6 +100,13 @@ class CEventChainExecutionThread : public CThread{
      */
     bool mProcessingEvents{false};
 
+    //! Transfer elements stored in the external event list to the main event list
+    void transferExternalEvents();
+
+    void selfSuspend(){
+      mSuspendSemaphore.waitIndefinitely();
+    }
+
   private:
     /*! \brief The thread run()-method where the events are sent to the FBs and the FBs are executed in.
      *
@@ -121,12 +133,7 @@ class CEventChainExecutionThread : public CThread{
       return !mExternalEventList.isEmpty();
     }
 
-    //! Transfer elements stored in the external event list to the main event list
-    void transferExternalEvents();
 
-    void selfSuspend(){
-      mSuspendSemaphore.waitIndefinitely();
-    }
 
     
 

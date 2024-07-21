@@ -131,9 +131,14 @@ std::unique_ptr<AbstractPayload> MessageFactory::createPayload(const std::string
   auto typeName = getTypeName(paField);
   auto instanceName = getInstanceName(paField);
 
-  if(paEventType == "receiveInputEvent" || paEventType == "sendOutputEvent") {
-    result.reset(new FBEventPayload(typeName, instanceName, readUint64Field(paField, "eventId")));
-  } else if(paEventType == "inputData" || paEventType == "outputData") {
+  if(paEventType == "receiveInputEvent") {
+    result.reset(new FBInputEventPayload(typeName, instanceName, readUint64Field(paField, "eventId")));
+  } else if(paEventType == "sendOutputEvent"){
+    std::vector<std::string> outputs;
+    readDynamicArrayField(paField, "outputs", outputs);
+    result.reset(new FBOutputEventPayload(typeName, instanceName, readUint64Field(paField, "eventId"), readUint64Field(paField, "eventCounter"), outputs));
+  } 
+  else if(paEventType == "inputData" || paEventType == "outputData") {
     result.reset(new FBDataPayload(typeName, instanceName, getDataId(paField), getValue(paField)));
   } else if(paEventType == "instanceData") {
       std::vector<std::string> inputs;
@@ -147,14 +152,6 @@ std::unique_ptr<AbstractPayload> MessageFactory::createPayload(const std::string
       readDynamicArrayField(paField, "internalFB", internalFB);
 
       result.reset(new FBInstanceDataPayload(typeName, instanceName, inputs, outputs, internal, internalFB));
-  } else if (paEventType == "externalEventInput") {
-      std::vector<std::string> outputs;
-
-      readDynamicArrayField(paField, "outputs", outputs);
-      result.reset(new FBExternalEventPayload(typeName, instanceName, 
-            readUint64Field(paField, "eventId"), 
-            readUint64Field(paField, "eventCounter"),
-            outputs));
-  }
+  } 
   return result;
 }

@@ -70,8 +70,6 @@ class CDeviceExecution {
 
     void disableHandlers();
 
-    CDevice& getDevice();
-
   private:
     /*!\brief Structure for holding the information belonging to one external event.
      */

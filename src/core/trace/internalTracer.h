@@ -42,16 +42,11 @@ public:
 
     void traceReceiveInputEvent(std::string paTypeName, std::string paInstanceName, const uint64_t paEventId) override;
 
-    void traceSendOutputEvent(std::string paTypeName, std::string paInstanceName, const uint64_t paEventId) override;
+    void traceSendOutputEvent(std::string paTypeName, std::string paInstanceName, const uint64_t paEventId, const uint64_t paEventCounter, const std::vector<std::string>& paOutputs) override;
 
     void traceInputData(std::string paTypeName, std::string paInstanceName, uint64_t paDataId, std::string paValue) override;
 
     void traceOutputData(std::string paTypeName, std::string paInstanceName, uint64_t paDataId, std::string paValue) override;
-
-    void traceExternalInputEvent(std::string paTypeName, std::string paInstanceName,
-        uint64_t paEventId,
-        uint64_t paEventCounter, 
-        const std::vector<std::string>& paOutputs = {}) override;
 
     bool isEnabled() override;
 
@@ -61,8 +56,6 @@ private:
   std::vector<EventMessage>& mOutput;
 
   static std::unordered_map<CStringDictionary::TStringId, std::vector<EventMessage>&> smResourceOutputMap;
-
-
 };
 
 #endif // INTERNAL_TRACER_H

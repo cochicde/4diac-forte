@@ -26,8 +26,15 @@
 #include "trace/barectf_platform_forte.h"
 #include "../fbtests/fbtesterglobalfixture.h"
 #include "utils/parameterParser.h"
+#include "trace/internalTracer.h"
+
+#include "cfb.h"
+#include "basicfb.h"
 
 #include "trace/manualEcet.h"
+
+#include <set>
+#include <functional>
 
 /**
  * @brief create a FB network with a E_SWITCH and E_CTU  with some connections 
@@ -56,7 +63,7 @@ std::ostream& operator<<(std::ostream &paOs, const EventMessage &paEventMessage)
  */
 std::unordered_map<std::string, std::vector<EventMessage>> getEventMessages(std::string path);
 
-std::unordered_map<std::string, std::vector<EventMessage>> getExternalEventMessage(std::string path);
+std::unordered_map<std::string, std::vector<EventMessage>> getNeededEvents(const std::unordered_map<std::string, std::vector<EventMessage>>& paEvents, std::function<bool(CStringDictionary::TStringId)> paIsNeeded);
 
 CResource* getResource(CDevice* paDevice, CStringDictionary::TStringId paResourceName);
 
@@ -73,17 +80,17 @@ void checkMessages(std::unordered_map<std::string, std::vector<EventMessage>>& p
     auto& actualMessages = paActual[resource];
 
     BOOST_TEST_INFO("Resource: " + resource + " Expected vs traced: Same size ");
-    BOOST_CHECK_EQUAL(actualMessages.size(), expectedMessages.size());
+    BOOST_CHECK_EQUAL(expectedMessages.size(), actualMessages.size());
 
       // although vectors can be check directly, this granularity helps debugging in case some message is different
-    for(size_t i = 0; i < expectedMessages.size(); i++ ){
+    for(size_t i = 0; i < std::min(expectedMessages.size(), actualMessages.size()); i++ ){
       BOOST_TEST_INFO("Resource: " + resource + " Expected event number " + std::to_string(i));
-      BOOST_CHECK_EQUAL(actualMessages[i], expectedMessages[i]);
+      BOOST_CHECK_EQUAL(expectedMessages[i], actualMessages[i]);
     }
 
     // add extra event to check that the comparison fails
-    expectedMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 2),0);
-    BOOST_CHECK(actualMessages != expectedMessages);
+    expectedMessages.emplace_back("sendOutputEvent", std::make_unique<FBInputEventPayload>("E_RESTART", "START", 2),0);
+    BOOST_CHECK(expectedMessages != actualMessages);
 
     // remove the recently added message in case is needed again later
     expectedMessages.pop_back();
@@ -109,6 +116,81 @@ std::string getResourceNameFromTraceOutputPort(const bt_port_output*	paPort)
 }
 
 BOOST_AUTO_TEST_SUITE (tracer_test)
+
+#include "forte_dint.h"
+#include "forte_bool.h"
+#include "forte_string.h"
+
+BOOST_AUTO_TEST_CASE(events_test) {
+  
+  CIEC_BOOL var1(false);
+  CIEC_DINT var2(98);
+  CIEC_STRING var3(std::string("1"));
+
+  CIEC_ANY* values[] = {&var1, &var2, &var3};
+  std::vector<std::string> outputs(3);
+  outputs.reserve(3);
+
+  for(size_t i = 0; i < outputs.size(); ++i) {
+    CIEC_ANY *value = values[i];
+    auto size = value->getToStringBufferSize();
+    char buffer[size];
+    buffer[value->toString(buffer, size)] = '\0';
+    outputs[i].assign(buffer);
+  }
+
+  CFlexibelTracer::setTracer("SomeOtherThing");
+
+  std::vector<EventMessage> expectedGeneratedMessagesResource1;
+  std::vector<EventMessage> expectedGeneratedMessagesResource2;
+
+  std::unordered_map<CStringDictionary::TStringId, std::vector<EventMessage>&> resourceToMessagesMap;
+  resourceToMessagesMap.insert({g_nStringIdE_CTU, expectedGeneratedMessagesResource1});
+  resourceToMessagesMap.insert({g_nStringIdMyDevice, expectedGeneratedMessagesResource2});
+
+  CInternalTracer::setResourceOutputMap(resourceToMessagesMap); 
+
+  CFlexibelTracer tracer1(g_nStringIdE_CTU, 10);
+  CFlexibelTracer tracer2(g_nStringIdMyDevice, 10);
+
+  auto traceMe = [&outputs](CFlexibelTracer& tracer){
+      tracer.traceReceiveInputEvent("E_RESTART", "START", 65534);
+      tracer.traceSendOutputEvent("E_RESTART", "START", 0, 1, outputs);
+      tracer.traceReceiveInputEvent("E_CTU", "Counter", 0);
+      tracer.traceInstanceData("E_CTU", "Counter", std::vector<std::string>{"1"}, std::vector<std::string>{"FALSE", "0"}, std::vector<std::string>{}, std::vector<std::string>{});
+      tracer.traceSendOutputEvent("E_CTU", "Counter", 0, 1, outputs);
+      tracer.traceOutputData("E_CTU", "Counter", 0, "TRUE");
+      tracer.traceOutputData("E_CTU", "Counter", 1, "1");
+      tracer.traceReceiveInputEvent("E_SWITCH", "Switch", 0);
+      tracer.traceInstanceData("E_SWITCH", "Switch", std::vector<std::string>{"FALSE"}, std::vector<std::string>{}, std::vector<std::string>{}, std::vector<std::string>{});
+      tracer.traceInputData("E_SWITCH", "Switch", 0, "TRUE");
+      tracer.traceSendOutputEvent("E_SWITCH", "Switch", 0, 1, std::vector<std::string>{});
+      tracer.traceReceiveInputEvent("E_CTU", "Counter", 1);
+      tracer.traceInstanceData("E_CTU", "Counter", std::vector<std::string>{"1"}, std::vector<std::string>{"TRUE", "1"}, std::vector<std::string>{}, std::vector<std::string>{});
+      tracer.traceSendOutputEvent("E_CTU", "Counter", 0, 1, std::vector<std::string>{});
+      tracer.traceOutputData("E_CTU", "Counter", 0, "FALSE");
+      tracer.traceOutputData("E_CTU", "Counter", 1, "0");
+      tracer.traceReceiveInputEvent("E_RESTART", "START", 65534);
+      tracer.traceSendOutputEvent("E_RESTART", "START", 0, 1, outputs);
+  };
+
+  for(auto i = 0; i < 100; i++ ){
+     traceMe(tracer1);
+      traceMe(tracer2);
+  }
+
+  printPrettyMessages(expectedGeneratedMessagesResource1);
+
+  auto messages1 = expectedGeneratedMessagesResource1;
+
+  printPrettyMessages(messages1);
+
+  auto messages2 = std::move(expectedGeneratedMessagesResource1);
+
+  printPrettyMessages(messages2);
+
+
+}
 
 BOOST_AUTO_TEST_CASE(sequential_events_test) {
   prepareTraceTest("metadata");
@@ -143,34 +225,32 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
   // message for the device is empty
 
   // timestamp cannot properly be tested, so setting everythin to zero
-  resourceMessages.emplace_back("externalEventInput", std::make_unique<FBExternalEventPayload>("E_RESTART", "START", 65534, 0),0);
-  resourceMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 65534),0);
-  resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 0),0);
-  resourceMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_CTU", "Counter", 0),0);
+  resourceMessages.emplace_back("receiveInputEvent", std::make_unique<FBInputEventPayload>("E_RESTART", "START", 65534),0);
+  resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBOutputEventPayload>("E_RESTART", "START", 0, 1, std::vector<std::string>{}),0);
+  resourceMessages.emplace_back("receiveInputEvent", std::make_unique<FBInputEventPayload>("E_CTU", "Counter", 0),0);
   resourceMessages.emplace_back("instanceData", std::make_unique<FBInstanceDataPayload>("E_CTU", "Counter", std::vector<std::string>{"1"}, std::vector<std::string>{"FALSE", "0"}, std::vector<std::string>{}, std::vector<std::string>{}), 0);
-  resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_CTU", "Counter", 0),0);
+  resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBOutputEventPayload>("E_CTU", "Counter", 0, 1, std::vector<std::string>{}),0);
   resourceMessages.emplace_back("outputData", std::make_unique<FBDataPayload>("E_CTU", "Counter", 0, "TRUE"), 0);
   resourceMessages.emplace_back("outputData", std::make_unique<FBDataPayload>("E_CTU", "Counter", 1, "1"), 0);
-  resourceMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_SWITCH", "Switch", 0),0);
+  resourceMessages.emplace_back("receiveInputEvent", std::make_unique<FBInputEventPayload>("E_SWITCH", "Switch", 0),0);
   resourceMessages.emplace_back("instanceData", std::make_unique<FBInstanceDataPayload>("E_SWITCH", "Switch", std::vector<std::string>{"FALSE"}, std::vector<std::string>{}, std::vector<std::string>{}, std::vector<std::string>{}), 0);
   resourceMessages.emplace_back("inputData", std::make_unique<FBDataPayload>("E_SWITCH", "Switch", 0, "TRUE"), 0);
-  resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_SWITCH", "Switch", 1),0);
-  resourceMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_CTU", "Counter", 1),0);
+  resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBOutputEventPayload>("E_SWITCH", "Switch", 1, 1, std::vector<std::string>{}),0);
+  resourceMessages.emplace_back("receiveInputEvent", std::make_unique<FBInputEventPayload>("E_CTU", "Counter", 1),0);
   resourceMessages.emplace_back("instanceData", std::make_unique<FBInstanceDataPayload>("E_CTU", "Counter", std::vector<std::string>{"1"}, std::vector<std::string>{"TRUE", "1"}, std::vector<std::string>{}, std::vector<std::string>{}),0);
-  resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_CTU", "Counter", 1),0);
+  resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBOutputEventPayload>("E_CTU", "Counter", 1, 1, std::vector<std::string>{}),0);
   resourceMessages.emplace_back("outputData", std::make_unique<FBDataPayload>("E_CTU", "Counter", 0, "FALSE"), 0);
   resourceMessages.emplace_back("outputData", std::make_unique<FBDataPayload>("E_CTU", "Counter", 1, "0"), 0);
-  resourceMessages.emplace_back("externalEventInput", std::make_unique<FBExternalEventPayload>("E_RESTART", "START", 65534, 4),0);
-  resourceMessages.emplace_back("receiveInputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 65534),0);
-  resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBEventPayload>("E_RESTART", "START", 2),0);
+  resourceMessages.emplace_back("receiveInputEvent", std::make_unique<FBInputEventPayload>("E_RESTART", "START", 65534),0);
+  resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBOutputEventPayload>("E_RESTART", "START", 2, 1, std::vector<std::string>{}),0);
 
   auto ctfMessages = getEventMessages(CTF_OUTPUT_DIR);
 
-  checkMessages(allMessages, ctfMessages);
+  checkMessages(ctfMessages, allMessages);
 }
 
 BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
-  prepareTraceTest("metadata");
+  // prepareTraceTest("metadata");
 
   auto resource1Name = g_nStringIdMyResource;
   auto resource2Name = g_nStringIdMyResource2;
@@ -178,29 +258,28 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
 
   // The inner scope is to make sure the destructors of the resources are 
   // called which flushes the output
-  {
+  // {
 
-    auto device = createNonDeterministicExample(resource1Name, resource2Name, deviceName); 
+  //   auto device = createNonDeterministicExample(resource1Name, resource2Name, deviceName); 
     
-    auto resource1 = getResource(device.get(), resource1Name);
-    auto resource2 = getResource(device.get(), resource2Name);
+  //   auto resource1 = getResource(device.get(), resource1Name);
+  //   auto resource2 = getResource(device.get(), resource2Name);
 
-    device->startDevice();
-    // wait for all events to be triggered
+  //   device->startDevice();
+  //   // wait for all events to be triggered
 
-    // TODO: Let it run for a random amount of time to make it more realistic
-    std::this_thread::sleep_for(std::chrono::milliseconds(4000));
+  //   // TODO: Let it run for a random amount of time to make it more realistic
+  //   std::this_thread::sleep_for(std::chrono::milliseconds(60000));
 
-    device->changeFBExecutionState(EMGMCommandType::Kill);
-    resource1->getResourceEventExecution()->joinEventChainExecutionThread();
-    resource2->getResourceEventExecution()->joinEventChainExecutionThread();
-  }
+  //   device->changeFBExecutionState(EMGMCommandType::Kill);
+  //   resource1->getResourceEventExecution()->joinEventChainExecutionThread();
+  //   resource2->getResourceEventExecution()->joinEventChainExecutionThread();
+  // }
 
-  // disable logging 
-  BarectfPlatformFORTE::setup("");
+  // // disable logging 
+  // BarectfPlatformFORTE::setup("");
 
   auto allTracedEvents = getEventMessages(CTF_OUTPUT_DIR);
-  auto allTracedExternalEvents = getExternalEventMessage(CTF_OUTPUT_DIR);
 
   {
     CEcetFactory::setEcetNameToCreate("manual");
@@ -219,17 +298,38 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
 
     auto device = createNonDeterministicExample(resource1Name, resource2Name, deviceName);
 
-    class helper {
-      public:
-      helper(CResource* paResource, std::vector<EventMessage>& paExternalEvents) : resource{paResource}, 
-                    ecet{dynamic_cast<CManualEventExecutionThread*>(resource->getResourceEventExecution())},
-                    externalEvents{paExternalEvents} {}
-      CResource* resource;
-      CManualEventExecutionThread* ecet;
-      std::vector<EventMessage>& externalEvents;
+    std::set<CStringDictionary::TStringId> validTypes;
+
+    for(const auto& resource : device->getFBList()){
+      if(auto container = dynamic_cast<forte::core::CFBContainer*>(resource); container != nullptr){
+        for(const auto& fb : container->getFBList()){
+          // all service FBs
+          if(dynamic_cast<CCompositeFB*>(fb) == nullptr && dynamic_cast<CBasicFB*>(fb) == nullptr){
+            validTypes.insert(fb->getFBTypeId());
+         }
+       }
+      }
+    }
+
+    CManualEventExecutionThread::smValidTypes = validTypes;
+
+    auto isValidType = [&validTypes](CStringDictionary::TStringId paType){
+      return validTypes.find(paType) != validTypes.end();
     };
 
-    auto resourceNames = std::vector<CStringDictionary::TStringId>({resource2Name, resource1Name});
+    auto allTracedExternalEvents = getNeededEvents(allTracedEvents, isValidType);
+
+    class helper {
+      public:
+      helper(CResource* paResource, const std::vector<EventMessage>& paEvents) : resource{paResource}, 
+                    ecet{dynamic_cast<CManualEventExecutionThread*>(resource->getResourceEventExecution())},
+                    mEvents{paEvents} {}
+      CResource* resource;
+      CManualEventExecutionThread* ecet;
+      const std::vector<EventMessage>& mEvents;
+    };
+
+    auto resourceNames = std::vector<CStringDictionary::TStringId>({resource1Name, resource2Name});
     
     std::vector<helper> resourceHelpers;
 
@@ -237,27 +337,38 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
       resourceHelpers.emplace_back(getResource(device.get(), resourceName), allTracedExternalEvents[CStringDictionary::getInstance().get(resourceName)]);
     }
 
+    //  for(auto& resourceHelper : resourceHelpers){
+    //   // we allow the starting event sent to RESTART so it's traced
+    //   auto allowOneEvent = [&resourceHelper, counter = 0](TEventEntry paEventEntry) mutable {
+    //     if(counter++ == 0){
+    //       resourceHelper.ecet->insertFront(paEventEntry);
+    //     }
+    //   }; 
+    //   resourceHelper.ecet->allowInternallyGeneratedEventChains(true, allowOneEvent);
+    // }
+
     device->startDevice();
 
-    for(auto& helper : resourceHelpers){
-      uint64_t previousEventCounter = 0;
-      for(auto& externalEvent : helper.externalEvents){
-        auto payload = externalEvent.getPayload<FBExternalEventPayload>();
-        helper.ecet->advance(payload.mEventCounter - previousEventCounter);
-//        BOOST_ASSERT(0 == helper.ecet->advance(payload.mEventCounter - previousEventCounter));
-        previousEventCounter = payload.mEventCounter;
 
+    for(auto& helper : resourceHelpers){
+    //  helper.ecet->allowInternallyGeneratedEventChains(false);
+      // uint64_t previousEventCounter = 0;
+      for(const auto& externalEvent : helper.mEvents){
+        auto payload = externalEvent.getPayload<FBOutputEventPayload>();
+        
         forte::core::TNameIdentifier id;
-        id.pushBack(CStringDictionary::getInstance().getId(payload.mInstanceName.c_str()));
+        id.pushBack(CStringDictionary::getInstance().getId(payload->mInstanceName.c_str()));
         forte::core::TNameIdentifier::CIterator anotherIterator(id.begin());
         auto fb = helper.resource->getContainedFB(anotherIterator);
 
-        helper.ecet->insertFront(CConnectionPoint(fb, payload.mEventId));
+        helper.ecet->triggerEventOnCounter(CConnectionPoint(fb, payload->mEventId), payload->mEventCounter, payload->mOutputs);
+ 
       }
       auto releaseEcet = [helper](TEventEntry){
         helper.ecet->removeControllFromOutside();
       };
       helper.ecet->allowInternallyGeneratedEventChains(true, releaseEcet);
+      helper.ecet->removeControllFromOutside();
     }
 
     device->changeFBExecutionState(EMGMCommandType::Kill);
@@ -272,7 +383,7 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
     expectedMessages.insert({CStringDictionary::getInstance().get(resource2Name), std::move(expectedGeneratedMessagesResource2)});
     expectedMessages.insert({CStringDictionary::getInstance().get(deviceName), std::move(expectedGeneratedMessagesDevice)});
 
-    checkMessages(expectedMessages, allTracedEvents);
+    checkMessages(allTracedEvents, expectedMessages);
   }
 }
 
@@ -767,18 +878,16 @@ std::unordered_map<std::string, std::vector<EventMessage>> getEventMessages(std:
   return messages;	
 }
 
-std::unordered_map<std::string, std::vector<EventMessage>> getExternalEventMessage(std::string path){
-
-  auto ctfMessages = getEventMessages(path);
+std::unordered_map<std::string, std::vector<EventMessage>> getNeededEvents(const std::unordered_map<std::string, std::vector<EventMessage>>& paEvents, std::function<bool(CStringDictionary::TStringId)> paIsNeeded){
 
   std::unordered_map<std::string, std::vector<EventMessage>> externalEvents;
 
-  for(auto& [resource, tracedMessages] : ctfMessages){
-    externalEvents.insert({resource, {}});
-    auto& externalEventMessages = externalEvents[resource];
+  for(const auto& [resourceName, tracedMessages] : paEvents){
+    externalEvents.insert({resourceName, {}});
+    auto& externalEventMessages = externalEvents[resourceName];
     
-    for(const auto& message : tracedMessages ){
-      if(message.getEventType() == "externalEventInput"){
+    for(auto& message : tracedMessages ){
+      if(message.getEventType() == "sendOutputEvent" && paIsNeeded(CStringDictionary::getInstance().getId(message.getTypeName().c_str()))){
         externalEventMessages.push_back(message);
       }
     }

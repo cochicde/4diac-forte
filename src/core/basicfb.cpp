@@ -176,30 +176,34 @@ void CBasicFB::traceInstanceData() {
   
   for(TPortId i = 0; i < inputs.size(); ++i) {
     CIEC_ANY *value = getDI(i);
-    std::string &valueString = inputs[i];
-    valueString.reserve(value->getToStringBufferSize());
-    value->toString(valueString.data(), valueString.capacity());
+    auto size = value->getToStringBufferSize();
+    char buffer[size];
+    buffer[value->toString(buffer, size)] = '\0';
+    inputs[i].assign(buffer);
   }
 
   for(TPortId i = 0; i < outputs.size(); ++i) {
     CIEC_ANY *value = getDO(i);
-    std::string &valueString = outputs[i];
-    valueString.reserve(value->getToStringBufferSize());
-    value->toString(valueString.data(), valueString.capacity());
+    auto size = value->getToStringBufferSize();
+    char buffer[size];
+    buffer[value->toString(buffer, size)] = '\0';
+    outputs[i].assign(buffer);
   }
 
   for(TPortId i = 0; i < internals.size(); ++i) {
     CIEC_ANY *value = getVarInternal(i);
-    std::string &valueString = internals[i];
-    valueString.reserve(value->getToStringBufferSize());
-    value->toString(valueString.data(), valueString.capacity());
+    auto size = value->getToStringBufferSize();
+    char buffer[size];
+    buffer[value->toString(buffer, size)] = '\0';
+    internals[i].assign(buffer);
   }
 
   for(TPortId i = 0; i < internalFbs.size(); ++i) {
     CFunctionBlock *value = getInternalFB(i);
-    std::string &valueString = internalFbs[i];
-    valueString.reserve(value->getToStringBufferSize());
-    value->toString(valueString.data(), valueString.capacity());
+    auto size = value->getToStringBufferSize();
+    char buffer[size];
+    buffer[value->toString(buffer, size)] = '\0';
+    internalFbs[i].assign(buffer);
   }
 
   getResource()->getTracer().traceInstanceData(
