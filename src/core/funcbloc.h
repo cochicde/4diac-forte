@@ -475,10 +475,7 @@ public:
       if(paEO < mInterfaceSpec->mNumEOs) {
         writeOutputData(paEO);
         #ifdef FORTE_TRACE_CTF
-          // don't trace unconnected outputs
-          if(getEOConUnchecked(static_cast<TPortId>(paEO))->getDestinationList().size() != 0){
-            traceOutputEvent(paEO, paECET);
-          }
+          traceOutputEvent(paEO, paECET);
         #endif
         getEOConUnchecked(static_cast<TPortId>(paEO))->triggerEvent(paECET);
 

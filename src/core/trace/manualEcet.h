@@ -26,47 +26,42 @@ class CManualEventExecutionThread : public CEventChainExecutionThread{
     CManualEventExecutionThread();
     ~CManualEventExecutionThread() override = default;
 
-    void insertFront(TEventEntry paEvent);
 
     void startEventChain(TEventEntry paEventToAdd) override;
 
     void allowInternallyGeneratedEventChains(bool paAllow, std::optional<std::function<void(TEventEntry)>> paCallback = std::nullopt);
 
+    void removeControllFromOutside();
+
     void triggerOutputEvent(TEventEntry paEvent);
+
+    void insertFront(TEventEntry paEvent);
+
+    void removeFromBack(size_t paNumberOfItemsToRemove);
+
+    TEventEntry* processOneEvent();
+
+    CFunctionBlock* getNextFb();
 
     static std::set<CStringDictionary::TStringId> smValidTypes;
 
+    uint64_t getEventCounter() const {
+      return mEventCounter;
+    }
 
-    /**
-     * @brief Advance the execution a certain amount of events. 
-     * 
-     * @param paNumberOfEvents Number of events to advance
-     * 
-     * @return number of events that could not be advanced because the the execution didn't have more events
-     * and got into a suspended state. If all events where advanced, 0 is returned
-    */
-    size_t advance(size_t paNumberOfEvents);
+    bool isListEmpty() {
+      return mEventList.isEmpty();
+    }
 
-    void advanceUntil(size_t paEventPosition);
-
-    void triggerEventOnCounter(TEventEntry paEvent, size_t paEventCounter, const std::vector<std::string>& paOutputs);
-
-    void removeControllFromOutside();
-
-    void mainRun();
 private:
 
     void processEvent(TEventEntry *event);
-
 
     void defaultEventChainCallback(TEventEntry paEventEntry);
 
     void setDefaultEventChainCallback();
 
     void run() override;
-    std::mutex mMutex;
-    std::condition_variable mConditionVariable;
-    bool mCanRun{false};
     bool mIsControlledFromOutside{true};
     bool mAllowInternallyGeneratedEventChains{false};
     std::function<void(TEventEntry)> mCallback;

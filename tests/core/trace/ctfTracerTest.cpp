@@ -321,12 +321,13 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
 
     class helper {
       public:
-      helper(CResource* paResource, const std::vector<EventMessage>& paEvents) : resource{paResource}, 
+      helper(CResource* paResource, const std::vector<EventMessage>& paEvents, std::vector<EventMessage>& paGeneratedTraces) : resource{paResource}, 
                     ecet{dynamic_cast<CManualEventExecutionThread*>(resource->getResourceEventExecution())},
-                    mEvents{paEvents} {}
+                    mEvents{paEvents}, mGeneratedTraces{paGeneratedTraces} {}
       CResource* resource;
       CManualEventExecutionThread* ecet;
       const std::vector<EventMessage>& mEvents;
+      std::vector<EventMessage>& mGeneratedTraces;
     };
 
     auto resourceNames = std::vector<CStringDictionary::TStringId>({resource1Name, resource2Name});
@@ -334,35 +335,88 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
     std::vector<helper> resourceHelpers;
 
     for(const auto resourceName : resourceNames){
-      resourceHelpers.emplace_back(getResource(device.get(), resourceName), allTracedExternalEvents[CStringDictionary::getInstance().get(resourceName)]);
+      resourceHelpers.emplace_back(
+          getResource(device.get(), resourceName), 
+          allTracedExternalEvents[CStringDictionary::getInstance().get(resourceName)], 
+          resourceToMessagesMap.at(resourceName)
+        );
     }
-
-    //  for(auto& resourceHelper : resourceHelpers){
-    //   // we allow the starting event sent to RESTART so it's traced
-    //   auto allowOneEvent = [&resourceHelper, counter = 0](TEventEntry paEventEntry) mutable {
-    //     if(counter++ == 0){
-    //       resourceHelper.ecet->insertFront(paEventEntry);
-    //     }
-    //   }; 
-    //   resourceHelper.ecet->allowInternallyGeneratedEventChains(true, allowOneEvent);
-    // }
 
     device->startDevice();
 
 
     for(auto& helper : resourceHelpers){
-    //  helper.ecet->allowInternallyGeneratedEventChains(false);
-      // uint64_t previousEventCounter = 0;
       for(const auto& externalEvent : helper.mEvents){
         auto payload = externalEvent.getPayload<FBOutputEventPayload>();
         
-        forte::core::TNameIdentifier id;
-        id.pushBack(CStringDictionary::getInstance().getId(payload->mInstanceName.c_str()));
-        forte::core::TNameIdentifier::CIterator anotherIterator(id.begin());
-        auto fb = helper.resource->getContainedFB(anotherIterator);
-
-        helper.ecet->triggerEventOnCounter(CConnectionPoint(fb, payload->mEventId), payload->mEventCounter, payload->mOutputs);
  
+
+        auto simulateExternalOutputEvent = [&payload, &helper] () {
+                  
+          forte::core::TNameIdentifier id;
+          id.pushBack(CStringDictionary::getInstance().getId(payload->mInstanceName.c_str()));
+          forte::core::TNameIdentifier::CIterator anotherIterator(id.begin());
+          auto fb = helper.resource->getContainedFB(anotherIterator);
+        
+          // copy output data to FB 
+          for(size_t i = 0; i < payload->mOutputs.size(); i++){
+            fb->getDO(i)->fromString(payload->mOutputs[i].c_str());
+          }
+
+          // traces and adds the event to the queue
+          helper.ecet->triggerOutputEvent(CConnectionPoint(fb, payload->mEventId));
+
+          // process the event immediately
+         // helper.ecet->processOneEvent();
+        };
+
+        // special case for the first event
+        if(payload->mEventCounter == 0){
+          simulateExternalOutputEvent();
+          continue;
+        }
+
+        while(!helper.ecet->isListEmpty()){
+          auto currentAmountOfTraces = helper.mGeneratedTraces.size();
+          auto currentEventCounter = helper.ecet->getEventCounter();
+
+          // save outputs
+          auto fb = helper.ecet->getNextFb();
+
+          std::vector<std::string> outputs(fb->getFBInterfaceSpec()->mNumDOs);
+
+          for(TPortId i = 0; i < outputs.size(); ++i) {
+            CIEC_ANY *value = fb->getDO(i);
+            auto size = value->getToStringBufferSize();
+            char buffer[size];
+            buffer[value->toString(buffer, size)] = '\0';
+            outputs[i].assign(buffer);
+          }
+
+          // process one 1 event and check if the queue got bigger than the current event being treated
+          auto processedEvent = helper.ecet->processOneEvent();
+
+          if(helper.ecet->getEventCounter() <= payload->mEventCounter){
+            continue;
+          }
+
+          // if we went too far, rollback and trigger the current event
+
+          auto addedTraces = helper.mGeneratedTraces.size() - currentAmountOfTraces;
+          auto addedEvents = helper.ecet->getEventCounter() - currentEventCounter;
+
+          helper.ecet->removeFromBack(addedEvents);
+          while(addedTraces-- != 0){
+            helper.mGeneratedTraces.pop_back();
+          }
+          helper.ecet->insertFront(*processedEvent);
+          for(TPortId i = 0; i < outputs.size(); ++i) {
+            fb->getDO(i)->fromString(outputs[i].c_str());
+          }
+
+          break;
+        }
+        simulateExternalOutputEvent();
       }
       auto releaseEcet = [helper](TEventEntry){
         helper.ecet->removeControllFromOutside();
