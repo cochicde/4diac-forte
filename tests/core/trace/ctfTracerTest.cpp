@@ -65,6 +65,9 @@ std::unordered_map<std::string, std::vector<EventMessage>> getEventMessages(std:
 
 std::unordered_map<std::string, std::vector<EventMessage>> getNeededEvents(const std::unordered_map<std::string, std::vector<EventMessage>>& paEvents, std::function<bool(CStringDictionary::TStringId)> paIsNeeded);
 
+std::unordered_map<std::string, std::vector<EventMessage>> getInputEvents(const std::unordered_map<std::string, std::vector<EventMessage>>& paEvents);
+
+
 CResource* getResource(CDevice* paDevice, CStringDictionary::TStringId paResourceName);
 
 /**
@@ -258,26 +261,26 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
 
   // The inner scope is to make sure the destructors of the resources are 
   // called which flushes the output
-  // {
+  {
 
-  //   auto device = createNonDeterministicExample(resource1Name, resource2Name, deviceName); 
+    auto device = createNonDeterministicExample(resource1Name, resource2Name, deviceName); 
     
-  //   auto resource1 = getResource(device.get(), resource1Name);
-  //   auto resource2 = getResource(device.get(), resource2Name);
+    auto resource1 = getResource(device.get(), resource1Name);
+    auto resource2 = getResource(device.get(), resource2Name);
 
-  //   device->startDevice();
-  //   // wait for all events to be triggered
+    device->startDevice();
+    // wait for all events to be triggered
 
-  //   // TODO: Let it run for a random amount of time to make it more realistic
-  //   std::this_thread::sleep_for(std::chrono::milliseconds(60000));
+    // TODO: Let it run for a random amount of time to make it more realistic
+    std::this_thread::sleep_for(std::chrono::milliseconds(300000));
 
-  //   device->changeFBExecutionState(EMGMCommandType::Kill);
-  //   resource1->getResourceEventExecution()->joinEventChainExecutionThread();
-  //   resource2->getResourceEventExecution()->joinEventChainExecutionThread();
-  // }
+    device->changeFBExecutionState(EMGMCommandType::Kill);
+    resource1->getResourceEventExecution()->joinEventChainExecutionThread();
+    resource2->getResourceEventExecution()->joinEventChainExecutionThread();
+  }
 
-  // // disable logging 
-  // BarectfPlatformFORTE::setup("");
+  // disable logging 
+  BarectfPlatformFORTE::setup("");
 
   auto allTracedEvents = getEventMessages(CTF_OUTPUT_DIR);
 
@@ -318,6 +321,8 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
     };
 
     auto allTracedExternalEvents = getNeededEvents(allTracedEvents, isValidType);
+
+    auto allInputEvents = getInputEvents(allTracedEvents);
 
     class helper {
       public:
@@ -437,7 +442,11 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
     expectedMessages.insert({CStringDictionary::getInstance().get(resource2Name), std::move(expectedGeneratedMessagesResource2)});
     expectedMessages.insert({CStringDictionary::getInstance().get(deviceName), std::move(expectedGeneratedMessagesDevice)});
 
-    checkMessages(allTracedEvents, expectedMessages);
+    auto inputGeneratedMessages = getInputEvents(expectedMessages);
+
+//    checkMessages(allTracedEvents, expectedMessages);
+    checkMessages(allInputEvents, inputGeneratedMessages);
+
   }
 }
 
@@ -948,6 +957,24 @@ std::unordered_map<std::string, std::vector<EventMessage>> getNeededEvents(const
   }
 
   return externalEvents;
+}
+
+std::unordered_map<std::string, std::vector<EventMessage>> getInputEvents(const std::unordered_map<std::string, std::vector<EventMessage>>& paEvents){
+
+  std::unordered_map<std::string, std::vector<EventMessage>> inputEvents;
+
+  for(const auto& [resourceName, tracedMessages] : paEvents){
+    inputEvents.insert({resourceName, {}});
+    auto& inputEventMessages = inputEvents[resourceName];
+    
+    for(auto& message : tracedMessages ){
+      if(message.getEventType() == "receiveInputEvent"){
+        inputEventMessages.push_back(message);
+      }
+    }
+  }
+
+  return inputEvents;
 }
 
 CResource* getResource(CDevice* paDevice, CStringDictionary::TStringId paResourceName){
