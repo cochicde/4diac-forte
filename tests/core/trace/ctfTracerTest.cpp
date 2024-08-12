@@ -46,8 +46,9 @@
 */
 std::unique_ptr<CDevice> createExampleDevice(CStringDictionary::TStringId paResourceName, CStringDictionary::TStringId paDeviceName = g_nStringIdMyDevice);
 
-std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStringId paResourceName1, CStringDictionary::TStringId paResourceName2, CStringDictionary::TStringId paDeviceName = g_nStringIdMyDevice);
-
+std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStringId paResourceName1, 
+      CStringDictionary::TStringId paResourceName2, 
+      CStringDictionary::TStringId paDeviceName = g_nStringIdMyDevice);
 
 std::ostream& operator<<(std::ostream &paOs, const EventMessage &paEventMessage) {
   paOs << paEventMessage.getPayloadString();
@@ -63,11 +64,17 @@ std::ostream& operator<<(std::ostream &paOs, const EventMessage &paEventMessage)
  */
 std::unordered_map<std::string, std::vector<EventMessage>> getEventMessages(std::string path);
 
-std::unordered_map<std::string, std::vector<EventMessage>> getNeededEvents(const std::unordered_map<std::string, std::vector<EventMessage>>& paEvents, std::function<bool(CStringDictionary::TStringId)> paIsNeeded);
+std::unordered_map<std::string, std::vector<EventMessage>> filterEvents(const std::unordered_map<std::string, 
+  std::vector<EventMessage>>& paEvents, std::function<bool(const EventMessage&)> paFilterIn);
 
-std::unordered_map<std::string, std::vector<EventMessage>> getInputEvents(const std::unordered_map<std::string, std::vector<EventMessage>>& paEvents);
 
-
+/**
+ * @brief  get the resource instance out of the device
+ * 
+ * @param paDevice Device where the to look for the resource 
+ * @param paResourceName resource name ID
+ * @return a pointer to the resource with the provided name, nullptr if a resource with the provided name does not exist
+ */
 CResource* getResource(CDevice* paDevice, CStringDictionary::TStringId paResourceName);
 
 /**
@@ -272,7 +279,7 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
     // wait for all events to be triggered
 
     // TODO: Let it run for a random amount of time to make it more realistic
-    std::this_thread::sleep_for(std::chrono::milliseconds(300000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
     device->changeFBExecutionState(EMGMCommandType::Kill);
     resource1->getResourceEventExecution()->joinEventChainExecutionThread();
@@ -316,13 +323,21 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
 
     CManualEventExecutionThread::smValidTypes = validTypes;
 
-    auto isValidType = [&validTypes](CStringDictionary::TStringId paType){
-      return validTypes.find(paType) != validTypes.end();
+    auto isValidType = [&validTypes](const EventMessage& paMessage){
+      if(paMessage.getEventType() != "sendOutputEvent"){
+        return false;
+      }
+      auto type = CStringDictionary::getInstance().getId(paMessage.getTypeName().c_str());
+      return validTypes.find(type) != validTypes.end();
     };
 
-    auto allTracedExternalEvents = getNeededEvents(allTracedEvents, isValidType);
+    auto allTracedExternalEvents = filterEvents(allTracedEvents, isValidType);
 
-    auto allInputEvents = getInputEvents(allTracedEvents);
+    auto isReceiveEvent = [](const EventMessage& paMessage){
+        return paMessage.getEventType() == "receiveInputEvent";
+    };
+
+    auto allInputEvents = filterEvents(allTracedEvents, isReceiveEvent);
 
     class helper {
       public:
@@ -442,7 +457,7 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
     expectedMessages.insert({CStringDictionary::getInstance().get(resource2Name), std::move(expectedGeneratedMessagesResource2)});
     expectedMessages.insert({CStringDictionary::getInstance().get(deviceName), std::move(expectedGeneratedMessagesDevice)});
 
-    auto inputGeneratedMessages = getInputEvents(expectedMessages);
+    auto inputGeneratedMessages = filterEvents(expectedMessages, isReceiveEvent);
 
 //    checkMessages(allTracedEvents, expectedMessages);
     checkMessages(allInputEvents, inputGeneratedMessages);
@@ -941,44 +956,26 @@ std::unordered_map<std::string, std::vector<EventMessage>> getEventMessages(std:
   return messages;	
 }
 
-std::unordered_map<std::string, std::vector<EventMessage>> getNeededEvents(const std::unordered_map<std::string, std::vector<EventMessage>>& paEvents, std::function<bool(CStringDictionary::TStringId)> paIsNeeded){
+std::unordered_map<std::string, std::vector<EventMessage>> filterEvents(const std::unordered_map<std::string, std::vector<EventMessage>>& paEvents, 
+      std::function<bool(const EventMessage&)> paFilterIn){
 
-  std::unordered_map<std::string, std::vector<EventMessage>> externalEvents;
+  std::unordered_map<std::string, std::vector<EventMessage>> result;
 
-  for(const auto& [resourceName, tracedMessages] : paEvents){
-    externalEvents.insert({resourceName, {}});
-    auto& externalEventMessages = externalEvents[resourceName];
+  for(const auto& [resourceName, messages] : paEvents){
+    result.insert({resourceName, {}});
+    auto& resultMessages = result[resourceName];
     
-    for(auto& message : tracedMessages ){
-      if(message.getEventType() == "sendOutputEvent" && paIsNeeded(CStringDictionary::getInstance().getId(message.getTypeName().c_str()))){
-        externalEventMessages.push_back(message);
+    for(auto& message : messages ){
+      if(paFilterIn(message)){
+        resultMessages.push_back(message);
       }
     }
   }
 
-  return externalEvents;
-}
-
-std::unordered_map<std::string, std::vector<EventMessage>> getInputEvents(const std::unordered_map<std::string, std::vector<EventMessage>>& paEvents){
-
-  std::unordered_map<std::string, std::vector<EventMessage>> inputEvents;
-
-  for(const auto& [resourceName, tracedMessages] : paEvents){
-    inputEvents.insert({resourceName, {}});
-    auto& inputEventMessages = inputEvents[resourceName];
-    
-    for(auto& message : tracedMessages ){
-      if(message.getEventType() == "receiveInputEvent"){
-        inputEventMessages.push_back(message);
-      }
-    }
-  }
-
-  return inputEvents;
+  return result;
 }
 
 CResource* getResource(CDevice* paDevice, CStringDictionary::TStringId paResourceName){
-  // get the resource instance out of the device
   forte::core::TNameIdentifier id;
   id.pushBack(paResourceName);
   forte::core::TNameIdentifier::CIterator nonConstIterator(id.begin());
