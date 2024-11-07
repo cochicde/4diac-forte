@@ -469,7 +469,7 @@ class CFunctionBlock : public forte::core::CFBContainer {
       FORTE_TRACE("OutputEvent: Function Block sending event: %d (maxid: %d)\n", paEO, getFBInterfaceSpec().mNumEOs - 1);
 
       #ifdef FORTE_TRACE_CTF
-        traceOutputEvent(paEO);
+        traceOutputEvent(paEO, paECET);
       #endif
 
       if(paEO < getFBInterfaceSpec().mNumEOs) {
@@ -687,7 +687,7 @@ class CFunctionBlock : public forte::core::CFBContainer {
 
 #ifdef FORTE_TRACE_CTF
     void traceInputEvent(TEventID paEIID);
-    void traceOutputEvent(TEventID paEOID);
+    void traceOutputEvent(TEventID paEOID, CEventChainExecutionThread * const paECET);
     void traceReadData(TPortId paDINum, CIEC_ANY& paValue);
     void traceWriteData(TPortId paDONum, CIEC_ANY& paValue);
 #endif
