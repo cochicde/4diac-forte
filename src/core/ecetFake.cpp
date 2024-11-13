@@ -88,6 +88,7 @@ void CFakeEventExecutionThread::removeFromBack(size_t paNumberOfItemsToRemove){
 
   while(paNumberOfItemsToRemove-- != 0){
     temp.pop_back();
+    mEventCounter--;
   }
 
   for(auto& event : temp){
