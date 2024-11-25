@@ -138,12 +138,8 @@ void CReplayAlgorithm::reproduceResource(CResourceInformation& paResourceInforma
 
   paResourceInformation.ecet->setCallbackForEventTriggering(processOneEvent);
 
-  // For each of the external events we received as input (with its event counter X), we will advance the ecet one event at the time
-  // as long as the event counter is less or equal as X. 
-  // For every event we want to advance in the ecet, we save the state of the outputs, amount of traces and current event counter value, 
-  // beacuse we don't know how many events will be created once we trigger the output event of it. 
-  // If after triggering, the current event counter is greater than X, we need to rollback and restore the previous values.
-  // We know also that at this point, the external event with the X event counter should be triggered.
+  // For each of the external events we received as input (with its event counter X), we will advance the ecet 
+  // as long as the event counter is less than X, and then trigger the external event X
   for(const auto& externalEvent : paResourceInformation.mEvents){
     
     auto payload = externalEvent.getPayload<FBOutputEventPayload>();
@@ -156,55 +152,18 @@ void CReplayAlgorithm::reproduceResource(CResourceInformation& paResourceInforma
         fb->getDO(i)->fromString(payload->mOutputs[i].c_str());
       }
 
-      // the follwoing will trace and add possible new events to the queue
+      // the following will trace and add possible new events to the queue
       fb->sendOutputEvent(payload->mEventId, paResourceInformation.ecet);
     };
 
-    // special case for the first event
-    if(payload->mEventCounter == 0){
-      simulateExternalOutputEvent();
-      continue;
-    }
-
-    for(auto event = paResourceInformation.ecet->getNextEvent(); event.has_value(); event = paResourceInformation.ecet->getNextEvent()){
-      auto currentAmountOfTraces = paResourceInformation.mGeneratedTraces.size();
-      auto currentEventCounter = paResourceInformation.ecet->getEventCounter();
-
-      // save outputs
-      auto fb = event.value().mFB; 
-
-      std::vector<std::string> outputs(fb->getFBInterfaceSpec().mNumDOs);
-
-      for(TPortId i = 0; i < outputs.size(); ++i) {
-        CIEC_ANY *value = fb->getDO(i);
-        auto size = value->getToStringBufferSize();
-        char buffer[size];
-        buffer[value->toString(buffer, size)] = '\0';
-        outputs[i].assign(buffer);
-      }
-
-      // process one 1 event and check if the queue got bigger than the current event being treated
+    while(paResourceInformation.ecet->getEventCounter() < payload->mEventCounter) {
       paResourceInformation.ecet->triggerNextEvent();
-
-      if(paResourceInformation.ecet->getEventCounter() <= payload->mEventCounter){
-        continue;
-      }
-
-      // if we went too far, rollback and trigger the current event
-      auto addedTraces = paResourceInformation.mGeneratedTraces.size() - currentAmountOfTraces;
-      auto addedEvents = paResourceInformation.ecet->getEventCounter() - currentEventCounter;
-
-      paResourceInformation.ecet->removeFromBack(addedEvents);
-      while(addedTraces-- != 0){
-        paResourceInformation.mGeneratedTraces.pop_back();
-      }
-      paResourceInformation.ecet->insertFront(event.value());
-      for(TPortId i = 0; i < outputs.size(); ++i) {
-        fb->getDO(i)->fromString(outputs[i].c_str());
-      }
-
-      break;
     }
+
     simulateExternalOutputEvent();
+  }
+
+  while(paResourceInformation.ecet->hasEvent()){
+    paResourceInformation.ecet->triggerNextEvent();
   }
 }

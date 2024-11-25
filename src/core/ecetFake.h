@@ -124,9 +124,19 @@ class CFakeEventExecutionThread : public CEventChainExecutionThread{
      */
     void setBreakpointHitCallback(HandleEvent paCallback);
     
-    uint64_t getEventCounter() {
-      return mEventCounter;
-    }
+    /*
+     * @brief Get the event counter value
+     * 
+     * @return the current event counter value
+     */
+    uint64_t getEventCounter();
+
+    /**
+     * @brief Check if there are events to be processed
+     * 
+     * @return true if there are events to be processed, false otherwise
+     */
+    bool hasEvent();
 
 private:
 

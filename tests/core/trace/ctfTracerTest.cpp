@@ -240,7 +240,7 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
     device->startDevice();
     // wait for all events to be triggered
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50000));
 
     device->changeExecutionState(EMGMCommandType::Kill);
     resource1->getResourceEventExecution()->joinEventChainExecutionThread();
@@ -267,16 +267,17 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
 
   auto reproducedEvents = replayAlgorithm.execute(allTracedExternalEvents);
 
-  // To test the algorithm, we compare only the receive inputs events to the generated ones
-  auto isReceiveEvent = [](const EventMessage& paMessage){
-      return paMessage.getEventType() == "receiveInputEvent";
+  // To test the algorithm, we compare only the outputs and instanceData events to the generated ones
+  auto isInteretingType = [](const EventMessage& paMessage){
+    auto messageType = paMessage.getEventType();
+    return messageType == "sendOutputEvent";
   };
 
-  auto allInputEvents = filterEvents(allTracedEvents, isReceiveEvent);
+  auto allInterestingEvents = filterEvents(allTracedEvents, isInteretingType);
 
-  auto inputGeneratedMessages = filterEvents(reproducedEvents, isReceiveEvent);
+  auto interestingGeneratedMessages = filterEvents(reproducedEvents, isInteretingType);
 
-  checkMessages(allInputEvents, inputGeneratedMessages);
+  checkMessages(allInterestingEvents, interestingGeneratedMessages);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
