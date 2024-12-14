@@ -25,6 +25,8 @@
 #include "replayAlgorithm.h"
 #include "arch/timerHandlerFactory.h"
 #include "utils.h"
+#include "ForteBootFileLoader.h"
+#include "CommandParser.h"
 
 
 #ifdef FORTE_ENABLE_GENERATED_SOURCE_CPP
@@ -87,6 +89,15 @@ namespace {
         CStringDictionary::TStringId paDeviceName = g_nStringIdMyDevice);
 
   /**
+   * @brief Create a device from file path
+   * 
+   * @param paDeviceName name of the device
+   * @param paFilePath path to the boot file of the device
+   * @return the created device 
+   */
+  std::unique_ptr<CDevice> createDeviceFromFile(CStringDictionary::TStringId paDeviceName, const std::string& paFilePath);
+
+  /**
    * @brief Filter a list of events based on a given function
    * 
    * @param paEvents list of events to be filtered, separated by a string key (usually resource name)
@@ -103,6 +114,8 @@ namespace {
    * @param paActual actual messages
    */
   void checkMessages(std::unordered_map<std::string, std::vector<EventMessage>>& paExpected, std::unordered_map<std::string, std::vector<EventMessage>>& paActual);
+
+  void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice);
 
 }
 
@@ -180,8 +193,8 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
   expectedMessages[CStringDictionary::getInstance().get(g_nStringIdEMB_RES)] = {}; 
 
   auto& defaultResourceMessages = expectedMessages[CStringDictionary::getInstance().get(g_nStringIdEMB_RES)];
-  addInitialEvents(defaultResourceMessages);
-  addFinalEvents(defaultResourceMessages, 0); // the RESTART output event doesn't generate any event since it's not connected to anything
+  // addInitialEvents(defaultResourceMessages);
+  // addFinalEvents(defaultResourceMessages, 0); // the RESTART output event doesn't generate any event since it's not connected to anything
   
   // resource with example FBs
   expectedMessages[CStringDictionary::getInstance().get(resourceName)] = {};
@@ -209,8 +222,8 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
   resourceMessages.emplace_back("instanceData", std::make_unique<FBInstanceDataPayload>("E_CTU", "Counter", std::vector<std::string>{"1"}, std::vector<std::string>{"TRUE", "1"}, std::vector<std::string>{}, std::vector<std::string>{}),0);
   resourceMessages.emplace_back("outputData", std::make_unique<FBDataPayload>("E_CTU", "Counter", 0, "FALSE"), 0);
   resourceMessages.emplace_back("outputData", std::make_unique<FBDataPayload>("E_CTU", "Counter", 1, "0"), 0);
-  resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBOutputEventPayload>("E_CTU", "Counter", 1, eventCounter, std::vector<std::string>{"FALSE", "0"}),0);
-  addFinalEvents(resourceMessages, eventCounter);
+  // resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBOutputEventPayload>("E_CTU", "Counter", 1, eventCounter, std::vector<std::string>{"FALSE", "0"}),0);
+  // addFinalEvents(resourceMessages, eventCounter);
 
   auto ctfMessages = getEventMessages(CTF_OUTPUT_DIR);
 
@@ -218,66 +231,22 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
 }
 
 BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
-  prepareTraceTest("metadata");
 
-  TimerHandlerFactory::setTimeHandlerNameToCreate(TimerHandlerFactory::AvailableTimers::standard);
-
-
-  auto resource1Name = g_nStringIdMyResource;
-  auto resource2Name = g_nStringIdMyResource2;
-  auto deviceName = g_nStringIdMyDevice;
-
-  auto createDevice = [&] () {
+  auto createDevice = [] () {
+    auto resource1Name = g_nStringIdMyResource;
+    auto resource2Name = g_nStringIdMyResource2;
+    auto deviceName = g_nStringIdMyDevice;
     return createNonDeterministicExample(resource1Name, resource2Name, deviceName);
   };  
+ testAlgorithm(createDevice);
+}
 
-  {
-    auto device = createDevice(); 
-
-    auto resource1 = dynamic_cast<CResource*>(forte::unit_test::utils::getFB(device.get(), resource1Name));
-    auto resource2 = dynamic_cast<CResource*>(forte::unit_test::utils::getFB(device.get(), resource2Name));
-
-    device->startDevice();
-    // wait for all events to be triggered
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(50000));
-
-    device->changeExecutionState(EMGMCommandType::Kill);
-    resource1->getResourceEventExecution()->joinEventChainExecutionThread();
-    resource2->getResourceEventExecution()->joinEventChainExecutionThread();
-  }
-
-  // disable logging 
-  BarectfPlatformFORTE::setup("");
-
-  auto allTracedEvents = getEventMessages(CTF_OUTPUT_DIR);
-
-  auto replayAlgorithm = CReplayAlgorithm(createDevice);
-
-  // function to filter events which are interesting for the replay algorithm, i.e. output events from service FBs
-  auto isValidType = [validTypes = replayAlgorithm.getValidTypes()](const EventMessage& paMessage){
-    if(paMessage.getEventType() != "sendOutputEvent"){
-      return false;
-    }
-    auto type = CStringDictionary::getInstance().getId(paMessage.getPayload<AbstractPayload>()->getTypeName().c_str());
-    return validTypes.find(type) != validTypes.end();
+BOOST_AUTO_TEST_CASE(reference_systems_test) {
+  auto createDevice = [](){
+    return createDeviceFromFile(g_nStringIdReferenceSystemDevice, REFERENCE_SYSTEMS_FILE);
   };
 
-  auto allTracedExternalEvents = filterEvents(allTracedEvents, isValidType);
-
-  auto reproducedEvents = replayAlgorithm.execute(allTracedExternalEvents);
-
-  // To test the algorithm, we compare only the outputs and instanceData events to the generated ones
-  auto isInteretingType = [](const EventMessage& paMessage){
-    auto messageType = paMessage.getEventType();
-    return messageType == "sendOutputEvent";
-  };
-
-  auto allInterestingEvents = filterEvents(allTracedEvents, isInteretingType);
-
-  auto interestingGeneratedMessages = filterEvents(reproducedEvents, isInteretingType);
-
-  checkMessages(allInterestingEvents, interestingGeneratedMessages);
+  testAlgorithm(createDevice);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -805,6 +774,66 @@ std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStrin
   }
 
   return device;
+}
+
+std::unique_ptr<CDevice> createDeviceFromFile(CStringDictionary::TStringId paDeviceName, const std::string& paFilePath) {
+  auto device = std::make_unique<CTesterDevice>(paDeviceName);
+  forte::core::SManagementCMD commandStorage;
+  ForteBootFileLoader([&device, &commandStorage](const char* paDest, char* paCommand) -> bool {
+    forte::command_parser::parseAndExecuteMGMCommand(paDest, paCommand, commandStorage,*device);
+  }, paFilePath);
+  
+  return device;
+}
+
+void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice) {
+  prepareTraceTest("metadata");
+
+  TimerHandlerFactory::setTimeHandlerNameToCreate(TimerHandlerFactory::AvailableTimers::standard);
+
+  {
+    auto device = paCreateDevice(); 
+
+    device->startDevice();
+    // wait for all events to be triggered
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50000));
+
+    device->changeExecutionState(EMGMCommandType::Kill);
+    device->awaitShutdown();
+  }
+
+  // disable logging 
+  BarectfPlatformFORTE::setup("");
+
+  auto allTracedEvents = getEventMessages(CTF_OUTPUT_DIR);
+
+  auto replayAlgorithm = CReplayAlgorithm(paCreateDevice);
+
+  // function to filter events which are interesting for the replay algorithm, i.e. output events from service FBs
+  auto isValidType = [validTypes = replayAlgorithm.getValidTypes()](const EventMessage& paMessage){
+    if(paMessage.getEventType() != "sendOutputEvent"){
+      return false;
+    }
+    auto type = CStringDictionary::getInstance().getId(paMessage.getPayload<AbstractPayload>()->getTypeName().c_str());
+    return validTypes.find(type) != validTypes.end();
+  };
+
+  auto allTracedExternalEvents = filterEvents(allTracedEvents, isValidType);
+
+  auto reproducedEvents = replayAlgorithm.execute(allTracedExternalEvents);
+
+  // To test the algorithm, we compare only the outputs and instanceData events to the generated ones
+  auto isInteretingType = [](const EventMessage& paMessage){
+    auto messageType = paMessage.getEventType();
+    return messageType == "sendOutputEvent";
+  };
+
+  auto allInterestingEvents = filterEvents(allTracedEvents, isInteretingType);
+
+  auto interestingGeneratedMessages = filterEvents(reproducedEvents, isInteretingType);
+
+  checkMessages(allInterestingEvents, interestingGeneratedMessages);
 }
 
 

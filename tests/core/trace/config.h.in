@@ -1,3 +1,4 @@
 
 const char* CTF_OUTPUT_DIR =  "${CTF_OUTPUT_DIR}";
 const char* METADATA_FILE = "${METADATA_FILE}";
+const char* REFERENCE_SYSTEMS_FILE =  "${REFERENCE_SYSTEMS_FILE}";
