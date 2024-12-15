@@ -29,7 +29,7 @@ CReplayAlgorithm::CReplayAlgorithm(std::function<std::unique_ptr<CDevice>(void)>
 
   EcetFactory::setEcetToCreate(EcetFactory::AvailableEcets::fake);
   TimerHandlerFactory::setTimeHandlerNameToCreate(TimerHandlerFactory::AvailableTimers::fakeTimer);
-  CFlexibleTracer::setTracer("SomeOtherThing");
+  CFlexibleTracer::setTracer(CFlexibleTracer::AvailableTracers::Internal);
 
   auto device = mCreateDevice();
 
@@ -54,7 +54,7 @@ CReplayAlgorithm::CReplayAlgorithm(std::function<std::unique_ptr<CDevice>(void)>
 CReplayAlgorithm::~CReplayAlgorithm(){
   EcetFactory::setEcetToCreate(EcetFactory::AvailableEcets::standard);
   TimerHandlerFactory::setTimeHandlerNameToCreate(TimerHandlerFactory::AvailableTimers::standard);
-  CFlexibleTracer::setTracer("");
+  CFlexibleTracer::setTracer(CFlexibleTracer::AvailableTracers::BareCtf);
 }
 
 std::unordered_map<std::string, std::vector<EventMessage>> CReplayAlgorithm::execute(const std::unordered_map<std::string, std::vector<EventMessage>>& paExternalEvents){

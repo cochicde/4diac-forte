@@ -115,7 +115,7 @@ namespace {
    */
   void checkMessages(std::unordered_map<std::string, std::vector<EventMessage>>& paExpected, std::unordered_map<std::string, std::vector<EventMessage>>& paActual);
 
-  void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice);
+  void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice, const std::size_t milliSeconds);
 
 }
 
@@ -238,7 +238,7 @@ BOOST_AUTO_TEST_CASE(non_deterministic_events_test) {
     auto deviceName = g_nStringIdMyDevice;
     return createNonDeterministicExample(resource1Name, resource2Name, deviceName);
   };  
- testAlgorithm(createDevice);
+ testAlgorithm(createDevice, 5000);
 }
 
 BOOST_AUTO_TEST_CASE(reference_systems_test) {
@@ -246,7 +246,7 @@ BOOST_AUTO_TEST_CASE(reference_systems_test) {
     return createDeviceFromFile(g_nStringIdReferenceSystemDevice, REFERENCE_SYSTEMS_FILE);
   };
 
-  testAlgorithm(createDevice);
+  testAlgorithm(createDevice, 3000);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -779,14 +779,14 @@ std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStrin
 std::unique_ptr<CDevice> createDeviceFromFile(CStringDictionary::TStringId paDeviceName, const std::string& paFilePath) {
   auto device = std::make_unique<CTesterDevice>(paDeviceName);
   forte::core::SManagementCMD commandStorage;
-  ForteBootFileLoader([&device, &commandStorage](const char* paDest, char* paCommand) -> bool {
-    forte::command_parser::parseAndExecuteMGMCommand(paDest, paCommand, commandStorage,*device);
+  ForteBootFileLoader fileLoader([&device, &commandStorage](const char* paDest, char* paCommand) -> bool {
+    return EMGMResponse::Ready == forte::command_parser::parseAndExecuteMGMCommand(paDest, paCommand, commandStorage,*device);
   }, paFilePath);
-  
+  BOOST_ASSERT(LoadBootResult::LOAD_RESULT_OK == fileLoader.loadBootFile());
   return device;
 }
 
-void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice) {
+void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice, const std::size_t milliSeconds) {
   prepareTraceTest("metadata");
 
   TimerHandlerFactory::setTimeHandlerNameToCreate(TimerHandlerFactory::AvailableTimers::standard);
@@ -794,10 +794,12 @@ void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice)
   {
     auto device = paCreateDevice(); 
 
-    device->startDevice();
+    device->initialize();
+
+   device->startDevice();
     // wait for all events to be triggered
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(50000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(milliSeconds));
 
     device->changeExecutionState(EMGMCommandType::Kill);
     device->awaitShutdown();

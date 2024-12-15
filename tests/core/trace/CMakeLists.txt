@@ -28,7 +28,7 @@ if(FORTE_TRACE_CTF_TEST)
 
   forte_test_add_link_library(babeltrace2)
 
-  SET(REFERENCE_SYSTEMS_FILE ${CMAKE_CURRENT_DIR}/refernceSystems.fboot)
+  SET(REFERENCE_SYSTEMS_FILE ${CMAKE_CURRENT_SOURCE_DIR}/referenceSystem.fboot)
   SET(CTF_OUTPUT_DIR ${CMAKE_BINARY_DIR}/ctfOutput)
   SET(METADATA_FILE ${CMAKE_BINARY_DIR}/src/core/trace/metadata)
 
