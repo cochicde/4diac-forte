@@ -34,21 +34,32 @@ CReplayAlgorithm::CReplayAlgorithm(std::function<std::unique_ptr<CDevice>(void)>
   auto device = mCreateDevice();
 
  // Get a list of all types that are not service FB (either Composite or Basic)
-  for(const auto& resource : device->getChildren()){
-    if(auto container = dynamic_cast<forte::core::CFBContainer*>(resource); container != nullptr){
-      for(const auto& fb : container->getChildren()){
-        // all service FBs
-        if(dynamic_cast<CCompositeFB*>(fb) == nullptr && dynamic_cast<CBasicFB*>(fb) == nullptr){
-          mValidTypes.insert(dynamic_cast<CFunctionBlock*>(fb)->getFBTypeId());
-        }
+  std::function<void(forte::core::CFBContainer*)> iterateContainers;
+
+  iterateContainers = [this, &iterateContainers](forte::core::CFBContainer* paContainer){
+    for(const auto child : paContainer->getChildren()){
+      if(child == nullptr){
+        continue;
+      }
+      if(child->isDynamicContainer()){
+        iterateContainers(child);
+        continue;
+      }
+      if(dynamic_cast<CCompositeFB*>(child) == nullptr && 
+          dynamic_cast<CBasicFB*>(child) == nullptr && 
+          dynamic_cast<CFunctionBlock*>(child) != nullptr){
+        mValidTypes.insert(dynamic_cast<CFunctionBlock*>(child)->getFBTypeId());
       }
     }
-  }
+  };
+
+  iterateContainers(device.get());
 
   // let it sleep for some time to since if too fast, the stopping signal 
   // comes too early
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   device->changeExecutionState(EMGMCommandType::Kill);
+  device->awaitShutdown();
 }
 
 CReplayAlgorithm::~CReplayAlgorithm(){

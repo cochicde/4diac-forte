@@ -778,6 +778,8 @@ std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStrin
 
 std::unique_ptr<CDevice> createDeviceFromFile(CStringDictionary::TStringId paDeviceName, const std::string& paFilePath) {
   auto device = std::make_unique<CTesterDevice>(paDeviceName);
+  device->initialize();
+
   forte::core::SManagementCMD commandStorage;
   ForteBootFileLoader fileLoader([&device, &commandStorage](const char* paDest, char* paCommand) -> bool {
     return EMGMResponse::Ready == forte::command_parser::parseAndExecuteMGMCommand(paDest, paCommand, commandStorage,*device);
@@ -794,7 +796,6 @@ void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice,
   {
     auto device = paCreateDevice(); 
 
-    device->initialize();
 
    device->startDevice();
     // wait for all events to be triggered
