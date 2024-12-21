@@ -307,10 +307,6 @@ class CFunctionBlock : public forte::core::CFBContainer {
                 // Count Event for monitoring
                 mEIMonitorCount[paEIID]++;
           #endif //FORTE_SUPPORT_MONITORING
-
-#ifdef FORTE_TRACE_CTF
-          traceInputEvent(paEIID);
-#endif // FORTE_TRACE_CTF
         }
         executeEvent(paEIID, paExecEnv);
       }
@@ -414,10 +410,6 @@ class CFunctionBlock : public forte::core::CFBContainer {
     virtual int toString(char* paValue, size_t paBufferSize) const;
 
     virtual size_t getToStringBufferSize() const;
-
-#ifdef FORTE_TRACE_CTF
-    virtual void traceInstanceData() {}
-#endif //FORTE_TRACE_CTF
 
     void addInputEventConnection(TEventID paEIID) {
       if (getFBInterfaceSpec().mEITypeNames != nullptr) {
@@ -688,7 +680,7 @@ class CFunctionBlock : public forte::core::CFBContainer {
 
 #ifdef FORTE_TRACE_CTF
     void traceInputEvent(TEventID paEIID);
-    void traceOutputEvent(TEventID paEOID, CEventChainExecutionThread * const paECET);
+    virtual void traceOutputEvent(TEventID paEOID, CEventChainExecutionThread * const paECET);
     void traceReadData(TPortId paDINum, CIEC_ANY& paValue);
     void traceWriteData(TPortId paDONum, CIEC_ANY& paValue);
 #endif

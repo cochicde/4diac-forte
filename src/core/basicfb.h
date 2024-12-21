@@ -49,7 +49,7 @@ class CBasicFB : public CFunctionBlock {
     size_t getToStringBufferSize() const override;
 
 #ifdef FORTE_TRACE_CTF
-    void traceInstanceData() override;
+    void traceOutputEvent(TEventID, CEventChainExecutionThread * const ) override {};
 #endif
 
   protected:

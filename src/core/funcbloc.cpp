@@ -627,15 +627,6 @@ size_t CFunctionBlock::getToStringBufferSize() const {
 
 //********************************** below here are CTF Tracing specific functions **********************************************************
 #ifdef FORTE_TRACE_CTF
-void CFunctionBlock::traceInputEvent(TEventID paEIID){
-  if(auto& tracer = getResource()->getTracer(); tracer.isEnabled()){
-    tracer.traceReceiveInputEvent(getFBTypeName() ?: "null",
-                                  getFullQualifiedApplicationInstanceName('.').c_str() ?: "null",
-                                  static_cast<uint64_t>(paEIID));
-    traceInstanceData();
-  }
-}
-
 void CFunctionBlock::traceOutputEvent(TEventID paEOID, CEventChainExecutionThread * const paECET){
   if(auto& tracer = getResource()->getTracer(); tracer.isEnabled()){
  

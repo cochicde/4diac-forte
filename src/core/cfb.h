@@ -128,6 +128,10 @@ class CCompositeFB: public CFunctionBlock {
 
     EMGMResponse changeExecutionState(EMGMCommandType paCommand) override;
 
+#ifdef FORTE_TRACE_CTF
+    void traceOutputEvent(TEventID , CEventChainExecutionThread * const) override {};
+#endif
+
   protected:
     CDataConnection *getIn2IfConUnchecked(TPortId paIndex) {
       return mIn2IfDConns[paIndex];
