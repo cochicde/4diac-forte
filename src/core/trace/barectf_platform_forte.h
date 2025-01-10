@@ -24,6 +24,11 @@
 
 #include "barectf.h"
 
+#include <thread>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+
 /**
  * @brief BareCTF tracer 
  * 
@@ -63,15 +68,7 @@ public:
                       paEventId);  
     }
 
-    void traceSendOutputEvent(const char * const paTypeName, const char * const paInstanceName, const uint64_t paEventId, const uint64_t paEventCounter, const uint32_t paOutputsLength, const char * const * const paOutputs) {
-      barectf_default_trace_sendOutputEvent(&context,
-                          paTypeName,
-                          paInstanceName,
-                          paEventId,
-                          paEventCounter,
-                          paOutputsLength, 
-                          paOutputs);
-    }
+    void traceSendOutputEvent(const char * const paTypeName, const char * const paInstanceName, const uint64_t paEventId, const uint64_t paEventCounter, const uint32_t paOutputsLength, const char * const * const paOutputs);
 
     void traceInputData( const char * const paTypeName, const char * const paInstanceName,
       const uint64_t paDataId, const char * const paValue) {
@@ -98,9 +95,41 @@ public:
     static void setup(std::string directory);
 
   private:
+    void work();
+
     std::ofstream output;
     std::unique_ptr<uint8_t []> buffer;
     barectf_default_ctx context;
+
+    class ToTrace {
+      public:
+      ToTrace(const char * const paTypeName, const char * const paInstanceName, const uint64_t paEventId, const uint64_t paEventCounter, const uint32_t paOutputsLength, const char * const * const paOutputs) 
+        : mTypeName(paTypeName), 
+          mInstanceName(paInstanceName), 
+          mEventId(paEventId),
+          mEventCounter(paEventCounter)
+      {
+        std::vector<std::string> toStore(paOutputsLength);
+        for(uint32_t i = 0; i < paOutputsLength; i++){
+          toStore[i] = paOutputs[i];
+        }
+        mOutputs = std::move(toStore);
+      };
+
+      std::string mTypeName;
+      std::string mInstanceName;
+      uint64_t mEventId;
+      uint64_t mEventCounter;
+      std::vector<std::string> mOutputs;
+    };
+
+    std::thread mWorker;
+    std::queue<ToTrace> mToTraceQ;
+    std::mutex mQeueMutex;
+    std::condition_variable mCond_var;
+    bool mShouldLive{true};
+    bool mShouldWrite{false};
+
 
     static bool enabled;
     static std::filesystem::path traceDirectory;

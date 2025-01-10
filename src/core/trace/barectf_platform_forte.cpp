@@ -67,9 +67,8 @@ void BarectfPlatformFORTE::closePacket(void *data) {
   if(enabled) {
     BarectfPlatformFORTE *platform = static_cast<BarectfPlatformFORTE *>(data);
     barectf_default_close_packet(&platform->context);
-    platform->output.write(reinterpret_cast<const char *>(barectf_packet_buf(&platform->context)),
-                           barectf_packet_buf_size(&platform->context));
-
+    // platform->output.write(reinterpret_cast<const char *>(barectf_packet_buf(&platform->context)),
+    //                        barectf_packet_buf_size(&platform->context));
   }
 }
 
@@ -87,10 +86,39 @@ BarectfPlatformFORTE::BarectfPlatformFORTE(std::filesystem::path filename, size_
     barectf_init(&context, buffer.get(), static_cast<uint32_t>(bufferSize), barectfCallbacks, this);
     barectf_enable_tracing(&context, enabled);
     openPacket(this);
+    // mWorker = std::thread([this]{
+    //   this->work();
+    // });
   } else {
     barectf_init(&context, buffer.get(), static_cast<uint32_t>(0), barectfCallbacks, this);
     barectf_enable_tracing(&context, enabled);
   }
+}
+
+void BarectfPlatformFORTE::traceSendOutputEvent(const char * const paTypeName, const char * const paInstanceName, const uint64_t paEventId, const uint64_t paEventCounter, const uint32_t paOutputsLength, const char * const * const paOutputs) {
+    barectf_default_trace_sendOutputEvent(&context,
+                              paTypeName,
+                              paInstanceName,
+                              paEventId,
+                              paEventCounter,
+                              paOutputsLength, 
+                              paOutputs);
+    return;
+
+
+    mToTraceQ.emplace(paTypeName,
+                  paInstanceName,
+                  paEventId,
+                  paEventCounter,
+                  paOutputsLength,
+                  paOutputs);
+    
+    if(mToTraceQ.size() == 1000) {
+      std::unique_lock lock(mQeueMutex);
+      mShouldWrite = true;
+      mCond_var.notify_all();
+      mCond_var.wait(lock, [this]{return !mShouldWrite;});
+    }
 }
 
 BarectfPlatformFORTE::BarectfPlatformFORTE(CStringDictionary::TStringId instanceName, size_t bufferSize)
@@ -106,7 +134,49 @@ BarectfPlatformFORTE::~BarectfPlatformFORTE() {
     }
     output.flush();
   }
+  mShouldLive = false;
+  mCond_var.notify_all();
+  if(mWorker.joinable()){
+    mWorker.join();
+  }
 }
+
+ void BarectfPlatformFORTE::work(){
+      std::queue<ToTrace> temp;
+
+      while(mShouldLive){
+        {
+          std::unique_lock lock(mQeueMutex);
+          mCond_var.wait(lock, [this]{return mShouldWrite || !mShouldLive;});
+          temp = std::move(mToTraceQ);
+          mToTraceQ = std::queue<ToTrace>();
+          mShouldWrite = false;
+          mCond_var.notify_all();
+          // while(mToTraceQ.size() != 0){
+          //   mToTraceQ.pop();
+          // }
+        }
+        while(temp.size() != 0){
+          auto& toTrace = temp.front();
+          auto outputSize = toTrace.mOutputs.size();
+          std::vector<const char *> outputs_c_str(outputSize);
+
+          for(std::size_t i = 0; i < toTrace.mOutputs.size(); ++i) {
+            outputs_c_str[i] = toTrace.mOutputs[i].c_str();
+          }
+          // barectf_default_trace_sendOutputEvent(&context,
+          //                     toTrace.mTypeName.c_str(),
+          //                     toTrace.mInstanceName.c_str(),
+          //                     toTrace.mEventId,
+          //                     toTrace.mEventCounter,
+          //                     static_cast<uint32_t >(toTrace.mOutputs.size()), 
+          //                     outputs_c_str.data());
+          temp.pop();
+        }
+
+      }
+
+    }
 
 std::string BarectfPlatformFORTE::dateCapture() {
   const auto now = std::chrono::system_clock::now();
