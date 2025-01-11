@@ -24,6 +24,7 @@
 #include "utils/parameterParser.h"
 #include "replayAlgorithm.h"
 #include "arch/timerHandlerFactory.h"
+#include "core/ecetFactory.h"
 #include "utils.h"
 #include "ForteBootFileLoader.h"
 #include "CommandParser.h"
@@ -780,9 +781,9 @@ std::unique_ptr<CDevice> createDeviceFromFile(CStringDictionary::TStringId paDev
   auto device = std::make_unique<CTesterDevice>(paDeviceName);
   device->initialize();
 
-  forte::core::SManagementCMD commandStorage;
-  ForteBootFileLoader fileLoader([&device, &commandStorage](const char* paDest, char* paCommand) -> bool {
-    return EMGMResponse::Ready == forte::command_parser::parseAndExecuteMGMCommand(paDest, paCommand, commandStorage,*device);
+  ForteBootFileLoader fileLoader([&device](const char* paDest, char* paCommand) -> bool {
+    forte::command_parser::Parser commandParser;
+    return EMGMResponse::Ready == commandParser.parseAndExecuteMGMCommand(paDest, paCommand, *device);
   }, paFilePath);
   BOOST_ASSERT(LoadBootResult::LOAD_RESULT_OK == fileLoader.loadBootFile());
   return device;
@@ -792,12 +793,14 @@ void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice,
   prepareTraceTest("metadata");
 
   TimerHandlerFactory::setTimeHandlerNameToCreate(TimerHandlerFactory::AvailableTimers::standard);
+  EcetFactory::setEcetToCreate(EcetFactory::AvailableEcets::standard);
+  CFlexibleTracer::setTracer(CFlexibleTracer::AvailableTracers::BareCtf);
 
   {
     auto device = paCreateDevice(); 
 
 
-   device->startDevice();
+    device->startDevice();
     // wait for all events to be triggered
 
     std::this_thread::sleep_for(std::chrono::milliseconds(milliSeconds));

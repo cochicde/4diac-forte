@@ -59,12 +59,11 @@ class CReplayAlgorithm {
    */
   class CResourceInformation {
     public:
-    CResourceInformation(CResource* paResource, const std::vector<EventMessage>& paEvents, std::vector<EventMessage>& paGeneratedTraces);
+    CResourceInformation(CResource* paResource, const std::vector<EventMessage>& paEvents);
     
     CResource* resource;
     CFakeEventExecutionThread* ecet;
     const std::vector<EventMessage>& mEvents;
-    std::vector<EventMessage>& mGeneratedTraces;
   };
 
   /**

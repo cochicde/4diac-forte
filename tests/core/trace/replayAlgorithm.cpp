@@ -11,14 +11,15 @@
 
 #include "utils.h"
 #include <thread>
+#include <iostream>
 
-CReplayAlgorithm::CResourceInformation::CResourceInformation(CResource* paResource, 
-        const std::vector<EventMessage>& paEvents, 
-        std::vector<EventMessage>& paGeneratedTraces) 
+CReplayAlgorithm::CResourceInformation::CResourceInformation(CResource* paResource, const std::vector<EventMessage>& paEvents) 
         : resource{paResource}, 
           ecet{dynamic_cast<CFakeEventExecutionThread*>(resource->getResourceEventExecution())},
-          mEvents{paEvents}, mGeneratedTraces{paGeneratedTraces} {
-  ecet->setCallbackForNewEventChain(std::nullopt);
+          mEvents{paEvents}{
+  if(ecet != nullptr){
+    ecet->setCallbackForNewEventChain(std::nullopt);
+  }
 }
 
 const std::set<CStringDictionary::TStringId>& CReplayAlgorithm::getValidTypes(){
@@ -72,21 +73,34 @@ std::unordered_map<std::string, std::vector<EventMessage>> CReplayAlgorithm::exe
 
   auto device = mCreateDevice();
 
-  auto& resourceToMessagesMap = CInternalTracer::getResourceOutputMap();
+  std::function<void(forte::core::CFBContainer*)> iterateContainers;
+
+  std::vector<CResource*> resources;
+
+  iterateContainers = [this, &iterateContainers, &resources](forte::core::CFBContainer* paContainer){
+    if(paContainer == nullptr){
+        return;
+    }
+    if(auto resource = dynamic_cast<CResource*>(paContainer); resource != nullptr){ 
+      resources.push_back(resource);
+    }
+
+    for(const auto child : paContainer->getChildren()){
+      iterateContainers(child);
+    }
+  };
+
+  iterateContainers(device.get());
 
   std::vector<CResourceInformation> resourceInfomations;
 
-  // get all the information needed for each resource. 
-  // Avoid accesing resources not in the parameter map and the device itself (which does not contain an ecet)
-  for(auto& [resourceName, messages] : resourceToMessagesMap){
-    if(auto resourceStringName = CStringDictionary::getInstance().get(resourceName); 
-      paExternalEvents.find(resourceStringName) != paExternalEvents.end() && device->getInstanceNameId() != resourceName){
+  for(auto resource : resources){
+   if(std::string resourceStringName = resource->getInstanceName(); 
+      paExternalEvents.find(resourceStringName) != paExternalEvents.end()){
 
       resourceInfomations.emplace_back(
-          dynamic_cast<CResource*>(forte::unit_test::utils::getFB(device.get(), resourceName)), 
-          paExternalEvents.at(resourceStringName), 
-          messages
-        );
+            resource, 
+            paExternalEvents.at(resourceStringName));
     }
   }
 
@@ -95,7 +109,9 @@ std::unordered_map<std::string, std::vector<EventMessage>> CReplayAlgorithm::exe
   for(auto& resourceInformation : resourceInfomations){
     reproduceResource(resourceInformation);
     
-    resourceInformation.ecet->removeExternalControl();
+    if(resourceInformation.ecet != nullptr){
+      resourceInformation.ecet->removeExternalControl();
+    }
   }
 
   // let it sleep for some time to since if too fast, the stopping signal 
@@ -105,22 +121,37 @@ std::unordered_map<std::string, std::vector<EventMessage>> CReplayAlgorithm::exe
   device->changeExecutionState(EMGMCommandType::Kill);
 
   for(auto& resourceInformation : resourceInfomations){
-    // resourceInformation.resource->getResourceEventExecution()->resumeSelfSuspend();
-    resourceInformation.resource->getResourceEventExecution()->joinEventChainExecutionThread();
+    if(resourceInformation.ecet != nullptr){
+      resourceInformation.ecet->joinEventChainExecutionThread();
+    }
   }
 
   // copy all messages to the result object using std::string as resource name
-  std::unordered_map<std::string, std::vector<EventMessage>> expectedMessages;
+  std::unordered_map<std::string, std::vector<EventMessage>> generatedMessages;
 
-  for(const auto& [name, messages]: resourceToMessagesMap){
-    expectedMessages.insert({CStringDictionary::getInstance().get(name), messages});
+  for(auto resourceInformation : resourceInfomations){
+
+    std::visit(
+      [&generatedMessages, &resourceInformation](auto&& paTracer){
+        using T = std::decay_t<decltype(paTracer)>;
+        if constexpr (std::is_same_v<T, CInternalTracer> == true) {
+          generatedMessages.insert({resourceInformation.resource->getInstanceName(), 
+              paTracer.getEvents()});
+        }
+       }, 
+      resourceInformation.resource->getTracer().getTracerVariant()
+    );
   }
 
-  return expectedMessages;
+  return generatedMessages;
 }
 
 void CReplayAlgorithm::reproduceResource(CResourceInformation& paResourceInformation){
   
+  if(paResourceInformation.ecet == nullptr){
+    return;
+  }
+
   // similar implentation as in CFunctionBlock::receiveInputEvent,
   // If the FB type is one that does not interest us (i.e. not a Service Function Block), 
   // we don't do anything and just pass through to the original CFunctionBlock::receiveInputEvent
@@ -156,7 +187,12 @@ void CReplayAlgorithm::reproduceResource(CResourceInformation& paResourceInforma
     auto payload = externalEvent.getPayload<FBOutputEventPayload>();
 
     auto simulateExternalOutputEvent = [&payload, &paResourceInformation] () {
-      auto fb = forte::unit_test::utils::getFB(paResourceInformation.resource, CStringDictionary::getInstance().getId(payload->getInstanceName().c_str())); 
+      auto fb = forte::unit_test::utils::getFB(paResourceInformation.resource, payload->getInstanceName()); 
+
+      if(fb ==nullptr){
+        std::cout << "Could not find the FB " << payload->getInstanceName() << " -> aborting..." << std::endl;
+        std::abort();
+      }
 
       // copy output data to FB 
       for(size_t i = 0; i < payload->mOutputs.size(); i++){

@@ -46,7 +46,7 @@ void CInternalTracer::traceSendOutputEvent(const char *const paTypeName, const c
   std::vector<std::string> outputs(paOutputsLength);
   fillStringsVector(paOutputs, paOutputsLength, outputs);
 
-  mOutput.emplace_back("sendOutputEvent", std::make_unique<FBOutputEventPayload>(paTypeName, paInstanceName, paEventId, paEventCounter, outputs), getNanoSecondsMonotonic());
+  mEvents.emplace_back("sendOutputEvent", std::make_unique<FBOutputEventPayload>(paTypeName, paInstanceName, paEventId, paEventCounter, outputs), getNanoSecondsMonotonic());
 }
 
 void CInternalTracer::traceInputData(const char *const paTypeName, const char *const paInstanceName,
