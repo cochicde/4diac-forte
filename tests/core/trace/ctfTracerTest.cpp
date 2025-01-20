@@ -780,10 +780,10 @@ std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStrin
 std::unique_ptr<CDevice> createDeviceFromFile(CStringDictionary::TStringId paDeviceName, const std::string& paFilePath) {
   auto device = std::make_unique<CTesterDevice>(paDeviceName);
   device->initialize();
+  forte::ita::CommandParser commandParser(*device);
 
-  ForteBootFileLoader fileLoader([&device](const char* paDest, char* paCommand) -> bool {
-    forte::command_parser::Parser commandParser;
-    return EMGMResponse::Ready == commandParser.parseAndExecuteMGMCommand(paDest, paCommand, *device);
+  ForteBootFileLoader fileLoader([&commandParser](const char* paDest, char* paCommand) -> bool {
+    return EMGMResponse::Ready == commandParser.parseAndExecuteMGMCommand(paDest, paCommand);
   }, paFilePath);
   BOOST_ASSERT(LoadBootResult::LOAD_RESULT_OK == fileLoader.loadBootFile());
   return device;
