@@ -17,8 +17,8 @@ CReplayAlgorithm::CResourceInformation::CResourceInformation(CResource* paResour
         : resource{paResource}, 
           ecet{dynamic_cast<CFakeEventExecutionThread*>(resource->getResourceEventExecution())},
           mEvents{paEvents}{
-  if(ecet != nullptr){
-    ecet->setCallbackForNewEventChain(std::nullopt);
+   if(ecet != nullptr){
+    ecet->takeExternalControl();
   }
 }
 
@@ -178,7 +178,7 @@ void CReplayAlgorithm::reproduceResource(CResourceInformation& paResourceInforma
     paEvent.mFB->traceInputEvent(paEvent.mPortId);
   };
 
-  paResourceInformation.ecet->setCallbackForEventTriggering(processOneEvent);
+  paResourceInformation.ecet->setRemoteCallbackForEventTriggering(processOneEvent);
 
   // For each of the external events we received as input (with its event counter X), we will advance the ecet 
   // as long as the event counter is less than X, and then trigger the external event X
