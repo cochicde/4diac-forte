@@ -2,128 +2,54 @@
 #include "replayAlgorithm.h"
 
 #include "core/ecetFake.h"
-#include "cfb.h"
-#include "basicfb.h"
-
-#include "core/ecetFactory.h"
-#include "arch/timerHandlerFactory.h"
-#include "core/trace/flexibleTracer.h"
-
+#include "core/device.h"
 #include "utils.h"
+
 #include <thread>
 #include <iostream>
 
-CReplayAlgorithm::CResourceInformation::CResourceInformation(CResource* paResource, const std::vector<EventMessage>& paEvents) 
-        : resource{paResource}, 
-          ecet{dynamic_cast<CFakeEventExecutionThread*>(resource->getResourceEventExecution())},
+CReplayAlgorithm::CResourceInformation::CResourceInformation(CResource& paResource, const std::vector<EventMessage>& paEvents) 
+        : mResource{paResource}, 
+          mEcet{*dynamic_cast<CFakeEventExecutionThread*>(mResource.getResourceEventExecution())},
           mEvents{paEvents}{
-   if(ecet != nullptr){
-    ecet->takeExternalControl();
-  }
+  mEcet.takeExternalControl();
 }
 
-const std::set<CStringDictionary::TStringId>& CReplayAlgorithm::getValidTypes(){
-  return mValidTypes;
-}
-
-CReplayAlgorithm::CReplayAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice) : mCreateDevice{paCreateDevice} {
-
-  EcetFactory::setEcetToCreate(EcetFactory::AvailableEcets::fake);
-  TimerHandlerFactory::setTimeHandlerNameToCreate(TimerHandlerFactory::AvailableTimers::fakeTimer);
-  CFlexibleTracer::setTracer(CFlexibleTracer::AvailableTracers::Internal);
-
-  auto device = mCreateDevice();
-
- // Get a list of all types that are not service FB (either Composite or Basic)
-  std::function<void(forte::core::CFBContainer*)> iterateContainers;
-
-  iterateContainers = [this, &iterateContainers](forte::core::CFBContainer* paContainer){
-    for(const auto child : paContainer->getChildren()){
-      if(child == nullptr){
-        continue;
-      }
-      if(child->isDynamicContainer()){
-        iterateContainers(child);
-        continue;
-      }
-      if(dynamic_cast<CCompositeFB*>(child) == nullptr && 
-          dynamic_cast<CBasicFB*>(child) == nullptr && 
-          dynamic_cast<CFunctionBlock*>(child) != nullptr){
-        mValidTypes.insert(dynamic_cast<CFunctionBlock*>(child)->getFBTypeId());
-      }
-    }
-  };
-
-  iterateContainers(device.get());
-
-  // let it sleep for some time to since if too fast, the stopping signal 
-  // comes too early
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  device->changeExecutionState(EMGMCommandType::Kill);
-  device->awaitShutdown();
-}
-
-CReplayAlgorithm::~CReplayAlgorithm(){
-  EcetFactory::setEcetToCreate(EcetFactory::AvailableEcets::standard);
-  TimerHandlerFactory::setTimeHandlerNameToCreate(TimerHandlerFactory::AvailableTimers::standard);
-  CFlexibleTracer::setTracer(CFlexibleTracer::AvailableTracers::BareCtf);
+CReplayAlgorithm::CReplayAlgorithm(CDevice& paDevice) : mDevice{paDevice} {
 }
 
 std::unordered_map<std::string, std::vector<EventMessage>> CReplayAlgorithm::execute(const std::unordered_map<std::string, std::vector<EventMessage>>& paExternalEvents){
 
-  auto device = mCreateDevice();
-
-  std::function<void(forte::core::CFBContainer*)> iterateContainers;
-
-  std::vector<CResource*> resources;
-
-  iterateContainers = [this, &iterateContainers, &resources](forte::core::CFBContainer* paContainer){
-    if(paContainer == nullptr){
-        return;
-    }
-    if(auto resource = dynamic_cast<CResource*>(paContainer); resource != nullptr){ 
-      resources.push_back(resource);
-    }
-
-    for(const auto child : paContainer->getChildren()){
-      iterateContainers(child);
-    }
-  };
-
-  iterateContainers(device.get());
+  mValidTypes = forte::unit_test::utils::getValidTypes(mDevice);
 
   std::vector<CResourceInformation> resourceInfomations;
 
-  for(auto resource : resources){
+  for(auto child : mDevice.getChildren()){
+  auto resource = static_cast<CResource*>(child); // the first generation of children under the device are always resources
    if(std::string resourceStringName = resource->getInstanceName(); 
       paExternalEvents.find(resourceStringName) != paExternalEvents.end()){
 
       resourceInfomations.emplace_back(
-            resource, 
+            *resource, 
             paExternalEvents.at(resourceStringName));
     }
   }
 
-  device->startDevice();
+  mDevice.startDevice();
 
   for(auto& resourceInformation : resourceInfomations){
     reproduceResource(resourceInformation);
-    
-    if(resourceInformation.ecet != nullptr){
-      resourceInformation.ecet->removeExternalControl();
-    }
+    resourceInformation.mEcet.removeExternalControl();
   }
 
   // let it sleep for some time to since if too fast, the stopping signal 
   // comes too early
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
-  device->changeExecutionState(EMGMCommandType::Kill);
+  mDevice.changeExecutionState(EMGMCommandType::Kill);
 
   for(auto& resourceInformation : resourceInfomations){
-    if(resourceInformation.ecet != nullptr){
-      resourceInformation.ecet->joinEventChainExecutionThread();
-    }
+    resourceInformation.mEcet.joinEventChainExecutionThread();
   }
 
   // copy all messages to the result object using std::string as resource name
@@ -135,11 +61,11 @@ std::unordered_map<std::string, std::vector<EventMessage>> CReplayAlgorithm::exe
       [&generatedMessages, &resourceInformation](auto&& paTracer){
         using T = std::decay_t<decltype(paTracer)>;
         if constexpr (std::is_same_v<T, CInternalTracer> == true) {
-          generatedMessages.insert({resourceInformation.resource->getInstanceName(), 
+          generatedMessages.insert({resourceInformation.mResource.getInstanceName(), 
               paTracer.getEvents()});
         }
        }, 
-      resourceInformation.resource->getTracer().getTracerVariant()
+      resourceInformation.mResource.getTracer().getTracerVariant()
     );
   }
 
@@ -148,10 +74,6 @@ std::unordered_map<std::string, std::vector<EventMessage>> CReplayAlgorithm::exe
 
 void CReplayAlgorithm::reproduceResource(CResourceInformation& paResourceInformation){
   
-  if(paResourceInformation.ecet == nullptr){
-    return;
-  }
-
   // similar implentation as in CFunctionBlock::receiveInputEvent,
   // If the FB type is one that does not interest us (i.e. not a Service Function Block), 
   // we don't do anything and just pass through to the original CFunctionBlock::receiveInputEvent
@@ -162,7 +84,7 @@ void CReplayAlgorithm::reproduceResource(CResourceInformation& paResourceInforma
     // pass through non interesting events
     if(auto type = CStringDictionary::getInstance().getId(paEvent.mFB->getFBTypeName());
         mValidTypes.find(type) == mValidTypes.end()){
-        paEvent.mFB->receiveInputEvent(paEvent.mPortId, paResourceInformation.ecet);
+        paEvent.mFB->receiveInputEvent(paEvent.mPortId, &paResourceInformation.mEcet);
         return;
     }
 
@@ -178,7 +100,7 @@ void CReplayAlgorithm::reproduceResource(CResourceInformation& paResourceInforma
     paEvent.mFB->traceInputEvent(paEvent.mPortId);
   };
 
-  paResourceInformation.ecet->setRemoteCallbackForEventTriggering(processOneEvent);
+  paResourceInformation.mEcet.setRemoteCallbackForEventTriggering(processOneEvent);
 
   // For each of the external events we received as input (with its event counter X), we will advance the ecet 
   // as long as the event counter is less than X, and then trigger the external event X
@@ -187,7 +109,7 @@ void CReplayAlgorithm::reproduceResource(CResourceInformation& paResourceInforma
     auto payload = externalEvent.getPayload<FBOutputEventPayload>();
 
     auto simulateExternalOutputEvent = [&payload, &paResourceInformation] () {
-      auto fb = forte::unit_test::utils::getFB(paResourceInformation.resource, payload->getInstanceName()); 
+      auto fb = forte::unit_test::utils::getFB(&paResourceInformation.mResource, payload->getInstanceName()); 
 
       if(fb ==nullptr){
         std::cout << "Could not find the FB " << payload->getInstanceName() << " -> aborting..." << std::endl;
@@ -200,17 +122,17 @@ void CReplayAlgorithm::reproduceResource(CResourceInformation& paResourceInforma
       }
 
       // the following will trace and add possible new events to the queue
-      fb->sendOutputEvent(payload->mEventId, paResourceInformation.ecet);
+      fb->sendOutputEvent(payload->mEventId, &paResourceInformation.mEcet);
     };
 
-    while(paResourceInformation.ecet->getEventCounter() < payload->mEventCounter) {
-      paResourceInformation.ecet->triggerNextEvent();
+    while(paResourceInformation.mEcet.getEventCounter() < payload->mEventCounter) {
+      paResourceInformation.mEcet.triggerNextEvent();
     }
 
     simulateExternalOutputEvent();
   }
 
-  while(paResourceInformation.ecet->hasEvent()){
-    paResourceInformation.ecet->triggerNextEvent();
+  while(paResourceInformation.mEcet.hasEvent()){
+    paResourceInformation.mEcet.triggerNextEvent();
   }
 }

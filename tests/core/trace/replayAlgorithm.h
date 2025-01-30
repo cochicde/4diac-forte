@@ -1,7 +1,6 @@
 
 #pragma once
 
-#include <functional>
 #include <memory>
 #include <set>
 #include <string>
@@ -9,10 +8,12 @@
 #include <vector>
 
 #include "EventMessage.h"
-#include "core/device.h"
+#include "core/stringdict.h"
 
 class CFakeEventExecutionThread;
 class CFunctionBlock;
+class CDevice;
+class CResource;
 
 namespace forte::core {
   class CFBContainer;
@@ -30,9 +31,9 @@ class CReplayAlgorithm {
    * 
    * @param paCreateDevice a function that creates the device for which the generation of events must be done 
    */
-  CReplayAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice);
+  CReplayAlgorithm(CDevice& paDevice);
 
-  ~CReplayAlgorithm();
+  ~CReplayAlgorithm() = default;
 
   /**
    * @brief Executes the algorithm tha generates the full set of events of the device
@@ -42,16 +43,9 @@ class CReplayAlgorithm {
    */
   std::unordered_map<std::string, std::vector<EventMessage>> execute(const std::unordered_map<std::string, std::vector<EventMessage>>& paExternalEvents);
 
-  /**
-   * @brief Get the list of valid function block types that are needed as input to the algorithm (i.e. all Service Function Blocks)
-   * 
-   * @return list of valid function blocks needed by the algorithm 
-   */
-  const std::set<CStringDictionary::TStringId>& getValidTypes();
-
   private:
 
-  std::function<std::unique_ptr<CDevice>(void)> mCreateDevice;
+  CDevice& mDevice;
 
   /**
    * @brief Helper class that contains all needed information of a resource by the algorithm
@@ -59,10 +53,10 @@ class CReplayAlgorithm {
    */
   class CResourceInformation {
     public:
-    CResourceInformation(CResource* paResource, const std::vector<EventMessage>& paEvents);
+    CResourceInformation(CResource& paResource, const std::vector<EventMessage>& paEvents);
     
-    CResource* resource;
-    CFakeEventExecutionThread* ecet;
+    CResource& mResource;
+    CFakeEventExecutionThread& mEcet;
     const std::vector<EventMessage>& mEvents;
   };
 

@@ -792,9 +792,7 @@ std::unique_ptr<CDevice> createDeviceFromFile(CStringDictionary::TStringId paDev
 void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice, const std::size_t milliSeconds) {
   prepareTraceTest("metadata");
 
-  TimerHandlerFactory::setTimeHandlerNameToCreate(TimerHandlerFactory::AvailableTimers::standard);
-  EcetFactory::setEcetToCreate(EcetFactory::AvailableEcets::standard);
-  CFlexibleTracer::setTracer(CFlexibleTracer::AvailableTracers::BareCtf);
+  forte::unit_test::utils::setFactoriesSettings({});
 
   {
     auto device = paCreateDevice(); 
@@ -814,10 +812,17 @@ void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice,
 
   auto allTracedEvents = getEventMessages(CTF_OUTPUT_DIR);
 
-  auto replayAlgorithm = CReplayAlgorithm(paCreateDevice);
+  forte::unit_test::utils::setFactoriesSettings(
+      {EcetFactory::AvailableEcets::fake,
+      TimerHandlerFactory::AvailableTimers::fakeTimer,
+      CFlexibleTracer::AvailableTracers::Internal});
+
+  auto device = paCreateDevice(); 
+
+  auto replayAlgorithm = CReplayAlgorithm(*device);
 
   // function to filter events which are interesting for the replay algorithm, i.e. output events from service FBs
-  auto isValidType = [validTypes = replayAlgorithm.getValidTypes()](const EventMessage& paMessage){
+  auto isValidType = [validTypes = forte::unit_test::utils::getValidTypes(*device)](const EventMessage& paMessage){
     if(paMessage.getEventType() != "sendOutputEvent"){
       return false;
     }
@@ -836,6 +841,8 @@ void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice,
   };
 
   auto allInterestingEvents = filterEvents(allTracedEvents, isInteretingType);
+
+  allInterestingEvents.erase(device->getInstanceName());
 
   auto interestingGeneratedMessages = filterEvents(reproducedEvents, isInteretingType);
 

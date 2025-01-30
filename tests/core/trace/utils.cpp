@@ -3,9 +3,13 @@
 #include "stdfblib/ita/CommandParser.h"
 
 #include <cstring>
+#include <set>
+#include <functional>
 
 #include "fbcontainer.h"
-
+#include "cfb.h"
+#include "basicfb.h"
+#include "device.h"
 
 namespace forte::unit_test::utils {
 
@@ -40,5 +44,42 @@ CFunctionBlock* getFB(forte::core::CFBContainer* paContainer, CStringDictionary:
   forte::core::TNameIdentifier::CIterator nonConstIterator(id.begin());
   return paContainer->getFB(nonConstIterator);
 }
+
+std::set<CStringDictionary::TStringId> getValidTypes(CDevice& paDevice){
+
+  std::set<CStringDictionary::TStringId> result;
+
+
+  // Get a list of all types that are not service FB (either Composite or Basic)
+  std::function<void(forte::core::CFBContainer*)> iterateContainers;
+
+  iterateContainers = [&iterateContainers, &result](forte::core::CFBContainer* paContainer){
+    for(const auto child : paContainer->getChildren()){
+      if(child == nullptr){
+        continue;
+      }
+      if(child->isDynamicContainer()){
+        iterateContainers(child);
+        continue;
+      }
+      if(dynamic_cast<CCompositeFB*>(child) == nullptr && 
+          dynamic_cast<CBasicFB*>(child) == nullptr && 
+          dynamic_cast<CFunctionBlock*>(child) != nullptr){
+        result.insert(dynamic_cast<CFunctionBlock*>(child)->getFBTypeId());
+      }
+    }
+  };
+
+  iterateContainers(&paDevice);
+
+  return result;
+}
+
+void setFactoriesSettings(FactoriesSettings paFactoriesSettings){
+  EcetFactory::setEcetToCreate(paFactoriesSettings.mEcet);
+  TimerHandlerFactory::setTimeHandlerNameToCreate(paFactoriesSettings.mTimer);
+  CFlexibleTracer::setTracer(paFactoriesSettings.mTracer);
+}
+
 
 } // namespace forte::unit_test::utils
