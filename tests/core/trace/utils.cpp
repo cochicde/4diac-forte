@@ -45,16 +45,15 @@ CFunctionBlock* getFB(forte::core::CFBContainer* paContainer, CStringDictionary:
   return paContainer->getFB(nonConstIterator);
 }
 
-std::set<CStringDictionary::TStringId> getValidTypes(CDevice& paDevice){
+std::set<CStringDictionary::TStringId> getValidTypes(forte::core::CFBContainer& paContainer){
 
   std::set<CStringDictionary::TStringId> result;
-
 
   // Get a list of all types that are not service FB (either Composite or Basic)
   std::function<void(forte::core::CFBContainer*)> iterateContainers;
 
-  iterateContainers = [&iterateContainers, &result](forte::core::CFBContainer* paContainer){
-    for(const auto child : paContainer->getChildren()){
+  iterateContainers = [&iterateContainers, &result](forte::core::CFBContainer* paSubcontainer){
+    for(const auto child : paSubcontainer->getChildren()){
       if(child == nullptr){
         continue;
       }
@@ -70,7 +69,7 @@ std::set<CStringDictionary::TStringId> getValidTypes(CDevice& paDevice){
     }
   };
 
-  iterateContainers(&paDevice);
+  iterateContainers(&paContainer);
 
   return result;
 }

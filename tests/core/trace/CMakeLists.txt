@@ -21,7 +21,8 @@ if(FORTE_TRACE_CTF_TEST)
 
   forte_test_add_sourcefile_cpp(bt2MessageFactory.cpp)
   forte_test_add_sourcefile_cpp(ctfTracerTest.cpp)
-  forte_test_add_sourcefile_cpp(replayAlgorithm.cpp)
+  forte_test_add_sourcefile_cpp(resourceReplayer.cpp)
+  forte_test_add_sourcefile_cpp(deviceReplayer.cpp)
   forte_test_add_sourcefile_cpp(TraceReaderSink.cpp)
   forte_test_add_sourcefile_cpp(utils.cpp)
 

@@ -1,0 +1,53 @@
+
+#include "deviceReplayer.h"
+
+#include "core/device.h"
+#include "core/ecetFake.h"
+#include "utils.h"
+
+#include <thread>
+
+CDeviceReplayer::CResourceInformation::CResourceInformation(CResource& paResource, const std::vector<EventMessage>& paExternalEvents) 
+        : mResourceReplayer(paResource, paExternalEvents), 
+          mResource{paResource},
+          mEcet{*dynamic_cast<CFakeEventExecutionThread*>(mResource.getResourceEventExecution())}{
+  mEcet.takeExternalControl();
+}
+
+CDeviceReplayer::CDeviceReplayer(CDevice& paDevice, const std::unordered_map<std::string, std::vector<EventMessage>>& paExternalEvents) : mDevice{paDevice} {
+  for(auto child : mDevice.getChildren()){
+    auto resource = static_cast<CResource*>(child); // the first generation of children under the device are always resources
+    if(std::string resourceStringName = resource->getInstanceName(); 
+      paExternalEvents.find(resourceStringName) != paExternalEvents.end()){
+
+      mResourceInformations.emplace_back( 
+            *resource, 
+            paExternalEvents.at(resourceStringName));
+    }
+  }
+}
+
+std::unordered_map<std::string, std::vector<EventMessage>> CDeviceReplayer::reproduceAll(){
+
+  mDevice.startDevice();
+
+  std::unordered_map<std::string, std::vector<EventMessage>> generatedMessages;
+
+  for(auto& resourceInformation : mResourceInformations){
+    generatedMessages.insert({resourceInformation.mResource.getInstanceName(), 
+              resourceInformation.mResourceReplayer.reproduceAll()});
+    resourceInformation.mEcet.removeExternalControl();
+  }
+
+  // let it sleep for some time to since if too fast, the stopping signal 
+  // comes too early
+  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+  mDevice.changeExecutionState(EMGMCommandType::Kill);
+
+  for(auto& resourceInformation : mResourceInformations){
+    resourceInformation.mEcet.joinEventChainExecutionThread();
+  }
+
+  return generatedMessages;
+}

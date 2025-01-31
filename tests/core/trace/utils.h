@@ -42,7 +42,7 @@ CFunctionBlock* getFB(forte::core::CFBContainer* paContainer, CStringDictionary:
    * 
    * @return list of valid function blocks needed by the algorithm 
    */
-  std::set<CStringDictionary::TStringId> getValidTypes(CDevice& paDevice);
+  std::set<CStringDictionary::TStringId> getValidTypes(forte::core::CFBContainer& paDevice);
 
   struct FactoriesSettings {
     EcetFactory::AvailableEcets mEcet{EcetFactory::AvailableEcets::standard};

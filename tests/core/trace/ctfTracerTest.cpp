@@ -22,7 +22,7 @@
 #include "trace/barectf_platform_forte.h"
 #include "../fbtests/fbtesterglobalfixture.h"
 #include "utils/parameterParser.h"
-#include "replayAlgorithm.h"
+#include "deviceReplayer.h"
 #include "arch/timerHandlerFactory.h"
 #include "core/ecetFactory.h"
 #include "utils.h"
@@ -183,9 +183,9 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
 
   };
 
-  auto addFinalEvents = [](std::vector<EventMessage>& paMessages, std::size_t paFinalEventCount){
-    paMessages.emplace_back("sendOutputEvent", std::make_unique<FBOutputEventPayload>("E_RESTART", "START", 2, paFinalEventCount, std::vector<std::string>{}),0);
-  };
+  // auto addFinalEvents = [](std::vector<EventMessage>& paMessages, std::size_t paFinalEventCount){
+  //   paMessages.emplace_back("sendOutputEvent", std::make_unique<FBOutputEventPayload>("E_RESTART", "START", 2, paFinalEventCount, std::vector<std::string>{}),0);
+  // };
 
   // device resource has no events
   expectedMessages[CStringDictionary::getInstance().get(deviceName)] = {}; 
@@ -193,7 +193,7 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
   // default resource in the test device
   expectedMessages[CStringDictionary::getInstance().get(g_nStringIdEMB_RES)] = {}; 
 
-  auto& defaultResourceMessages = expectedMessages[CStringDictionary::getInstance().get(g_nStringIdEMB_RES)];
+  // auto& defaultResourceMessages = expectedMessages[CStringDictionary::getInstance().get(g_nStringIdEMB_RES)];
   // addInitialEvents(defaultResourceMessages);
   // addFinalEvents(defaultResourceMessages, 0); // the RESTART output event doesn't generate any event since it's not connected to anything
   
@@ -819,7 +819,6 @@ void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice,
 
   auto device = paCreateDevice(); 
 
-  auto replayAlgorithm = CReplayAlgorithm(*device);
 
   // function to filter events which are interesting for the replay algorithm, i.e. output events from service FBs
   auto isValidType = [validTypes = forte::unit_test::utils::getValidTypes(*device)](const EventMessage& paMessage){
@@ -832,7 +831,9 @@ void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice,
 
   auto allTracedExternalEvents = filterEvents(allTracedEvents, isValidType);
 
-  auto reproducedEvents = replayAlgorithm.execute(allTracedExternalEvents);
+  auto deviceReplayer = CDeviceReplayer(*device, allTracedExternalEvents);
+
+  auto reproducedEvents = deviceReplayer.reproduceAll();
 
   // To test the algorithm, we compare only the outputs and instanceData events to the generated ones
   auto isInteretingType = [](const EventMessage& paMessage){

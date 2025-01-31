@@ -718,7 +718,7 @@ class CFunctionBlock : public forte::core::CFBContainer {
 #endif //FORTE_FMU
 
 #ifdef FORTE_TRACE_CTF_TEST
-    friend class CReplayAlgorithm;
+    friend class CResourceReplayer;
 #endif // FORTE_TRACE_CTF_TEST
 };
 
