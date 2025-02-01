@@ -11,7 +11,6 @@ CDeviceReplayer::CResourceInformation::CResourceInformation(CResource& paResourc
         : mResourceReplayer(paResource, paExternalEvents), 
           mResource{paResource},
           mEcet{*dynamic_cast<CFakeEventExecutionThread*>(mResource.getResourceEventExecution())}{
-  mEcet.takeExternalControl();
 }
 
 CDeviceReplayer::CDeviceReplayer(CDevice& paDevice, const std::unordered_map<std::string, std::vector<EventMessage>>& paExternalEvents) : mDevice{paDevice} {
@@ -50,4 +49,13 @@ std::unordered_map<std::string, std::vector<EventMessage>> CDeviceReplayer::repr
   }
 
   return generatedMessages;
+}
+
+std::optional<TEventEntry> CDeviceReplayer::reproduceNextEvent(const std::string& paResourceName) {
+  for(auto& resourceInformation : mResourceInformations){
+    if(resourceInformation.mResource.getInstanceName() == paResourceName){
+      return resourceInformation.mResourceReplayer.reproduceNextEvent();
+    }
+  }
+  return std::nullopt;
 }

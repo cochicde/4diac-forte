@@ -8,26 +8,24 @@
 #include <iostream>
 
 CResourceReplayer::CResourceReplayer(CResource& paResource, std::vector<EventMessage> paExternalEvents) 
-  : mResource{paResource}, mExternalEvents{std::move(paExternalEvents)} {
-  mValidTypes = forte::unit_test::utils::getValidTypes(mResource);
-}
+  : mResource{paResource}, mEcet{*dynamic_cast<CFakeEventExecutionThread*>(mResource.getResourceEventExecution())}, mExternalEvents{std::move(paExternalEvents)} {
 
-std::vector<EventMessage> CResourceReplayer::reproduceAll(){
-  
-  auto& ecet = *dynamic_cast<CFakeEventExecutionThread*>(mResource.getResourceEventExecution());
+  mEcet.takeExternalControl();
 
   // similar implentation as in CFunctionBlock::receiveInputEvent,
   // If the FB type is one that does not interest us (i.e. not a Service Function Block), 
   // we don't do anything and just pass through to the original CFunctionBlock::receiveInputEvent
   // Otherwise, we read the inputs and trace the event, but don't trigger the event itself, meaning
   // that we absorv the event
-  auto processOneEvent = [&ecet, this](TEventEntry paEvent){
+  // capturing "this" into the lambda created some issues for some reason
+  auto processOneEvent = [ validTypes = forte::unit_test::utils::getValidTypes(mResource), &ecet = this->mEcet](TEventEntry paEvent){
 
     // pass through non interesting events
     if(auto type = CStringDictionary::getInstance().getId(paEvent.mFB->getFBTypeName());
-        mValidTypes.find(type) == mValidTypes.end()){
-        paEvent.mFB->receiveInputEvent(paEvent.mPortId, &ecet);
-        return;
+        validTypes.find(type) == validTypes.end()){
+     
+      paEvent.mFB->receiveInputEvent(paEvent.mPortId, &ecet);
+      return;
     }
 
     if(CFunctionBlock::E_FBStates::Running != paEvent.mFB->getState()){
@@ -42,41 +40,12 @@ std::vector<EventMessage> CResourceReplayer::reproduceAll(){
     paEvent.mFB->traceInputEvent(paEvent.mPortId);
   };
 
-  ecet.setRemoteCallbackForEventTriggering(processOneEvent);
+  mEcet.setRemoteCallbackForEventTriggering(processOneEvent);
+}
 
-  // For each of the external events we received as input (with its event counter X), we will advance the ecet 
-  // as long as the event counter is less than X, and then trigger the external event X
-  for(const auto& externalEvent : mExternalEvents){
-    
-    auto payload = externalEvent.getPayload<FBOutputEventPayload>();
-
-    auto simulateExternalOutputEvent = [&payload, &ecet, this] () {
-      auto fb = forte::unit_test::utils::getFB(&mResource, payload->getInstanceName()); 
-
-      if(fb ==nullptr){
-        std::cout << "Could not find the FB " << payload->getInstanceName() << " -> aborting..." << std::endl;
-        std::abort();
-      }
-
-      // copy output data to FB 
-      for(size_t i = 0; i < payload->mOutputs.size(); i++){
-        fb->getDO(i)->fromString(payload->mOutputs[i].c_str());
-      }
-
-      // the following will trace and add possible new events to the queue
-      fb->sendOutputEvent(payload->mEventId, &ecet);
-    };
-
-    while(ecet.getEventCounter() < payload->mEventCounter) {
-      ecet.triggerNextEvent();
-    }
-
-    simulateExternalOutputEvent();
-  }
-
-  while(ecet.hasEvent()){
-    ecet.triggerNextEvent();
-  }
+std::vector<EventMessage> CResourceReplayer::reproduceAll(){
+  
+  while(reproduceNextEvent() != std::nullopt);
 
   return std::visit(
     [this](auto&& paTracer) -> std::vector<EventMessage> {
@@ -88,4 +57,50 @@ std::vector<EventMessage> CResourceReplayer::reproduceAll(){
     }, 
     mResource.getTracer().getTracerVariant()
   );
+}
+
+std::optional<TEventEntry> CResourceReplayer::reproduceNextEvent(){
+  
+  // For each of the external events we received as input (with its event counter X), we will advance the ecet 
+  // as long as the event counter is less than X, and then trigger the external event X
+  if(mStepperIndex < mExternalEvents.size()){
+  
+    auto payload = mExternalEvents[mStepperIndex].getPayload<FBOutputEventPayload>();
+
+    auto simulateExternalOutputEvent = [this] (TEventEntry paEvent, const std::vector<std::string>& paOutputs) {
+      // copy output data to FB 
+      for(size_t i = 0; i < paOutputs.size(); i++){
+        paEvent.mFB->getDO(i)->fromString(paOutputs[i].c_str());
+      }
+
+      // the following will trace and add possible new events to the queue
+      paEvent.mFB->sendOutputEvent(paEvent.mPortId, &mEcet);
+    };
+
+    while(mEcet.getEventCounter() < payload->mEventCounter) {
+      auto toReturn = mEcet.getNextEvent();
+      mEcet.triggerNextEvent();
+      return toReturn;
+    }
+
+    auto functionBlock = forte::unit_test::utils::getFB(&mResource, payload->getInstanceName()); 
+
+    if(functionBlock == nullptr){
+      std::cout << "Could not find the FB " << payload->getInstanceName() << " -> aborting..." << std::endl;
+      std::abort();
+    }
+
+    auto eventToTrigger = TEventEntry(functionBlock, payload->mEventId);
+    simulateExternalOutputEvent(eventToTrigger, payload->mOutputs);
+    mStepperIndex++;
+    return eventToTrigger;
+  }
+
+  while(mEcet.hasEvent()){
+    auto toReturn = mEcet.getNextEvent();
+    mEcet.triggerNextEvent();
+    return toReturn;
+  }
+
+  return std::nullopt;
 }

@@ -45,6 +45,15 @@ class CDeviceReplayer {
    */
   std::unordered_map<std::string, std::vector<EventMessage>> reproduceAll();
 
+  /**
+   * @brief Reproduce the next event
+   * 
+   * @param paResourceName name of the resource where to reproduce the next event
+   * 
+   * @return the event that was executed, std::nullopt if nothing was executed 
+   */
+  std::optional<TEventEntry> reproduceNextEvent(const std::string& paResourceName);
+
   private:
 
   CDevice& mDevice;

@@ -6,17 +6,14 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <optional>
 
 #include "EventMessage.h"
 #include "core/stringdict.h"
+#include "core/event.h"
 
-class CFakeEventExecutionThread;
-class CFunctionBlock;
 class CResource;
-
-namespace forte::core {
-  class CFBContainer;
-}
+class CFakeEventExecutionThread;
 
 /**
  * @brief Algorithm to generate the full series of event in a resource from the subset of output events of Service Function Blocks 
@@ -42,11 +39,20 @@ class  CResourceReplayer {
    */
   std::vector<EventMessage> reproduceAll();
 
+  /**
+   * @brief Reproduce the next event
+   * 
+   * @return the event that was executed, std::nullopt if nothing was executed 
+   */
+  std::optional<TEventEntry> reproduceNextEvent();
+
   private:
 
   CResource& mResource;
 
-  const std::vector<EventMessage> mExternalEvents;
+  CFakeEventExecutionThread& mEcet;
 
-  std::set<CStringDictionary::TStringId> mValidTypes;
+  size_t mStepperIndex{0};
+
+  const std::vector<EventMessage> mExternalEvents;
 };
