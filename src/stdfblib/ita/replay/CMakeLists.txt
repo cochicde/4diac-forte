@@ -21,8 +21,8 @@ if (FORTE_COM_OPC_UA)
     forte_add_sourcefile_cpp(TraceReaderSink.cpp)
     forte_add_link_library(babeltrace2)
 
-   # forte_add_device(MultiDevice "stdfblib/ita/debug_device/MultiDevice" "MultiDevice")
-    forte_add_sourcefile_hcpp(deviceReplayer resourceReplayer utils)
+    forte_add_device(ReplayDevice "stdfblib/ita/replay/ReplayDevice" "ReplayDevice")
+    forte_add_sourcefile_hcpp(deviceReplayer resourceReplayer utils ReplayDevice ReplayMGR)
   endif()
 
 endif()

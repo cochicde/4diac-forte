@@ -1,0 +1,142 @@
+/*******************************************************************************
+ * Copyright (c) 2025 Jose Cabral
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0.
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ *
+ * Contributors:
+ *    Jose Cabral - initial implementation
+ *******************************************************************************/
+
+#include "ReplayMGR.h"
+
+#include "core/ecetFactory.h"
+#include "core/trace/flexibleTracer.h"
+#include "core/ecetFake.h"
+#include "stdfblib/ita/replay/utils.h"
+
+ReplayMGR::ReplayMGR(CDevice& paDevice, OPCUA_MGR& paOpcuaMgr) : 
+  mDevice(paDevice), mOpcuaMgr(paOpcuaMgr), mDebugMgr(paDevice, paOpcuaMgr) {
+  // we need the fake ecet to debug control the device remotely
+  EcetFactory::setEcetToCreate(EcetFactory::AvailableEcets::fake);
+  CFlexibleTracer::setTracer(CFlexibleTracer::AvailableTracers::Internal);
+}
+
+ReplayMGR::~ReplayMGR() {
+  CFlexibleTracer::setTracer(CFlexibleTracer::AvailableTracers::BareCtf);
+}
+
+bool ReplayMGR::initialize(){
+  if (!mDebugMgr.initialize()) {
+    return false;
+  }
+
+  addReadTracesMethod();
+  addReplayNextEventMethod();
+
+  return true;
+}
+
+std::string& ReplayMGR::getArgumentString(std::string paString) {
+  return mArgumentsInformation.emplace_back(std::move(paString));
+}
+
+void ReplayMGR::addReadTracesMethod(){
+  OPCUA_MGR::MethodInformation newMethod;
+
+  newMethod.mMethodName = "Read Traces";
+  newMethod.mDisplayName = "Read Traces";
+  newMethod.mDescription = "Read Traces and load them for later reproduction";
+  newMethod.mCallback = &ReplayMGR::onReadTraces;
+  newMethod.mNodeContext = this;
+
+  newMethod.mInArguments.push_back(UA_Argument());
+
+  OPCUA_MGR::initArgument(
+    newMethod.mInArguments[0], 
+    UA_TYPES_STRING, 
+    getArgumentString("Path to traces").data(), 
+    getArgumentString("Local path of the folder containing the traces").data());
+
+  mOpcuaMgr.addExtraMgmMethod(newMethod);
+}
+
+void ReplayMGR::addReplayNextEventMethod(){
+  OPCUA_MGR::MethodInformation newMethod;
+
+  newMethod.mMethodName = "Replay Next Event";
+  newMethod.mDisplayName = "Replay Next Event";
+  newMethod.mDescription = "Replay the next event in the resource";
+  newMethod.mCallback = &ReplayMGR::onReplayNextEvent;
+  newMethod.mNodeContext = this;
+  
+  newMethod.mOutArguments.push_back(UA_Argument());
+
+  OPCUA_MGR::initArgument(
+    newMethod.mOutArguments[0], 
+    UA_TYPES_STRING, 
+    getArgumentString("The event that was executed").data(), 
+    getArgumentString("The event that was lastlty executed").data());
+
+
+  mOpcuaMgr.addExtraResourceMethod(newMethod);
+}
+
+UA_StatusCode ReplayMGR::onReadTraces(UA_Server*,
+  const UA_NodeId*, void*,
+  const UA_NodeId*, void* methodContext,
+  const UA_NodeId*, void*,
+  size_t, const UA_Variant* input,
+  size_t, UA_Variant* ) {
+
+  auto replayMgr = static_cast<ReplayMGR*>(methodContext);
+  auto uaStringInput = static_cast<UA_String*>(input[0].data);
+  auto path = std::string((const char*)uaStringInput->data, uaStringInput->length);
+
+  // TODO: add error handling to getEventMessages
+  auto events = forte::ita::replay::utils::getEventMessages(path);
+
+  auto replayAlgorithmEvents = forte::ita::replay::utils::filterEventsForReplayDevice(events, replayMgr->mDevice);
+
+  replayMgr->mDeviceReplayer = std::make_unique<CDeviceReplayer>(replayMgr->mDevice, std::move(replayAlgorithmEvents));
+
+  return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode ReplayMGR::onReplayNextEvent(UA_Server*,
+  const UA_NodeId*, void*,
+  const UA_NodeId*, void* methodContext,
+  const UA_NodeId*, void* objectContext,
+  size_t, const UA_Variant*,
+  size_t, UA_Variant* output) {
+
+  auto replayMgr = static_cast<ReplayMGR*>(methodContext);
+
+  auto resourceName = static_cast<const char*>(objectContext);
+
+  if(replayMgr->mDeviceReplayer == nullptr){
+    return UA_STATUSCODE_BADINVALIDSTATE;
+  }
+
+  auto nextEvent = replayMgr->mDeviceReplayer->reproduceNextEvent(resourceName);
+
+  UA_String response;
+  if(nextEvent.has_value()){
+    auto event = nextEvent.value();
+    auto functionBlockName = event.mFB->getFullQualifiedApplicationInstanceName('.');
+    const auto interface = event.mFB->getFBInterfaceSpec();
+    auto portName = std::string(CStringDictionary::getInstance().get(interface.mEINames[event.mPortId]));
+    response = UA_String_fromChars(std::string(functionBlockName + "." + portName).c_str());
+  } else {
+    response = UA_String_fromChars("");
+  }
+
+  auto status = UA_Variant_setScalarCopy(output, &response, &UA_TYPES[UA_TYPES_STRING]);
+  UA_String_clear(&response);
+
+  return status;
+}
+

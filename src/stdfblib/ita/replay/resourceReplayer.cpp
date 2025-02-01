@@ -64,7 +64,7 @@ std::optional<TEventEntry> CResourceReplayer::reproduceNextEvent(){
   
   // For each of the external events we received as input (with its event counter X), we will advance the ecet 
   // as long as the event counter is less than X, and then trigger the external event X
-  if(mStepperIndex < mExternalEvents.size()){
+  while(mStepperIndex < mExternalEvents.size()){
   
     auto payload = mExternalEvents[mStepperIndex].getPayload<FBOutputEventPayload>();
 
@@ -91,10 +91,10 @@ std::optional<TEventEntry> CResourceReplayer::reproduceNextEvent(){
       std::abort();
     }
 
-    auto eventToTrigger = TEventEntry(functionBlock, payload->mEventId);
-    simulateExternalOutputEvent(eventToTrigger, payload->mOutputs);
+    simulateExternalOutputEvent(TEventEntry(functionBlock, payload->mEventId), payload->mOutputs);
     mStepperIndex++;
-    return eventToTrigger;
+    // we don't return yet, since simulating an external input only add events to the queue
+    // we exit the loop only after mEcet.triggerNextEvent() is executed
   }
 
   while(mEcet.hasEvent()){

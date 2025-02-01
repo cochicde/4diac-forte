@@ -3,7 +3,7 @@
 #include "cfb.h"
 #include "basicfb.h"
 #include "utils/parameterParser.h"
-
+#include "core/device.h"
 
 #include <babeltrace2/babeltrace.h>
 
@@ -178,6 +178,40 @@ std::string getResourceNameFromTraceOutputPort(const bt_port_output*	paPort)
   }
 
   return result;
+}
+
+std::unordered_map<std::string, std::vector<EventMessage>> filterEvents(const std::unordered_map<std::string, std::vector<EventMessage>>& paEvents, std::function<bool(const EventMessage&)> paFilterIn){
+
+  std::unordered_map<std::string, std::vector<EventMessage>> result;
+
+  for(const auto& [resourceName, messages] : paEvents){
+    result.insert({resourceName, {}});
+    auto& resultMessages = result[resourceName];
+
+    for(auto& message : messages ){
+      if(paFilterIn(message)){
+        resultMessages.push_back(message);
+      }
+    }
+  }
+
+  return result;
+}
+
+std::unordered_map<std::string, std::vector<EventMessage>> filterEventsForReplayDevice(const std::unordered_map<std::string, 
+    std::vector<EventMessage>>& paEvents, CDevice& paDevice) {
+
+  // function to filter events which are interesting for the replay algorithm, i.e. output events from service FBs
+  auto isValidType = [validTypes = getServiceFunctionBlockTypes(paDevice)](const EventMessage& paMessage){
+    if(paMessage.getEventType() != "sendOutputEvent"){
+      return false;
+    }
+    auto type = CStringDictionary::getInstance().getId(paMessage.getPayload<AbstractPayload>()->getTypeName().c_str());
+    return validTypes.find(type) != validTypes.end();
+  };
+
+  return filterEvents(paEvents, isValidType);
+
 }
 
 }

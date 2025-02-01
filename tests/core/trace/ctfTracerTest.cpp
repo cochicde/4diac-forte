@@ -79,16 +79,6 @@ namespace {
   std::unique_ptr<CDevice> createDeviceFromFile(CStringDictionary::TStringId paDeviceName, const std::string& paFilePath);
 
   /**
-   * @brief Filter a list of events based on a given function
-   * 
-   * @param paEvents list of events to be filtered, separated by a string key (usually resource name)
-   * @param paFilterIn function to check if the event should be kept
-   * @return list of filtered events 
-   */
-  std::unordered_map<std::string, std::vector<EventMessage>> filterEvents(const std::unordered_map<std::string, 
-      std::vector<EventMessage>>& paEvents, std::function<bool(const EventMessage&)> paFilterIn);
-
-  /**
    * @brief Compares two maps of expected messages from resources to the actual ones
    * 
    * @param paExpected expected messages
@@ -698,56 +688,26 @@ void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice,
 
   auto device = paCreateDevice(); 
 
-
-  // function to filter events which are interesting for the replay algorithm, i.e. output events from service FBs
-  auto isValidType = [validTypes = forte::ita::replay::utils::getServiceFunctionBlockTypes(*device)](const EventMessage& paMessage){
-    if(paMessage.getEventType() != "sendOutputEvent"){
-      return false;
-    }
-    auto type = CStringDictionary::getInstance().getId(paMessage.getPayload<AbstractPayload>()->getTypeName().c_str());
-    return validTypes.find(type) != validTypes.end();
-  };
-
-  auto allTracedExternalEvents = filterEvents(allTracedEvents, isValidType);
+  auto allTracedExternalEvents = forte::ita::replay::utils::filterEventsForReplayDevice(allTracedEvents, *device);
 
   auto deviceReplayer = CDeviceReplayer(*device, allTracedExternalEvents);
 
   auto reproducedEvents = deviceReplayer.reproduceAll();
 
-  // To test the algorithm, we compare only the outputs and instanceData events to the generated ones
+  // To test the algorithm, we compare only the outputs events to the generated ones
   auto isInteretingType = [](const EventMessage& paMessage){
     auto messageType = paMessage.getEventType();
     return messageType == "sendOutputEvent";
   };
 
-  auto allInterestingEvents = filterEvents(allTracedEvents, isInteretingType);
+  auto allInterestingEvents = forte::ita::replay::utils::filterEvents(allTracedEvents, isInteretingType);
 
   allInterestingEvents.erase(device->getInstanceName());
 
-  auto interestingGeneratedMessages = filterEvents(reproducedEvents, isInteretingType);
+  auto interestingGeneratedMessages = forte::ita::replay::utils::filterEvents(reproducedEvents, isInteretingType);
 
   checkMessages(allInterestingEvents, interestingGeneratedMessages);
 }
-
-
-std::unordered_map<std::string, std::vector<EventMessage>> filterEvents(const std::unordered_map<std::string, std::vector<EventMessage>>& paEvents, std::function<bool(const EventMessage&)> paFilterIn){
-
-  std::unordered_map<std::string, std::vector<EventMessage>> result;
-
-  for(const auto& [resourceName, messages] : paEvents){
-    result.insert({resourceName, {}});
-    auto& resultMessages = result[resourceName];
-
-    for(auto& message : messages ){
-      if(paFilterIn(message)){
-        resultMessages.push_back(message);
-      }
-    }
-  }
-
-  return result;
-}
-
 
 void checkMessages(std::unordered_map<std::string, std::vector<EventMessage>>& paExpected, 
   std::unordered_map<std::string, std::vector<EventMessage>>& paActual){

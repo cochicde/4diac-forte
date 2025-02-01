@@ -23,6 +23,7 @@
 #include <string>
 #include <set>
 #include <unordered_map>
+#include <functional>
 
 class CFunctionBlock;
 class CDevice;
@@ -89,5 +90,26 @@ std::unordered_map<std::string, std::vector<EventMessage>> getEventMessages(std:
  * @return the name of the resource
  */
 std::string getResourceNameFromTraceOutputPort(const bt_port_output*	paPort);
+
+ /**
+   * @brief Filter a list of events based on a given function
+   * 
+   * @param paEvents list of events to be filtered, separated by a string key (usually resource name)
+   * @param paFilterIn function to check if the event should be kept
+   * @return list of filtered events 
+   */
+std::unordered_map<std::string, std::vector<EventMessage>> filterEvents(const std::unordered_map<std::string, 
+    std::vector<EventMessage>>& paEvents, std::function<bool(const EventMessage&)> paFilterIn);
+
+
+  /**
+   * @brief Filter a list of events returning only the interesting ones needed for the replay device algorithm
+   * 
+   * @param paEvents list of events to be filtered, separated by a string key (usually resource name)
+   * @param paDevice device which is being replayed
+   * @return list of filtered events 
+   */
+std::unordered_map<std::string, std::vector<EventMessage>> filterEventsForReplayDevice(const std::unordered_map<std::string, 
+    std::vector<EventMessage>>& paEvents, CDevice& paDevice);
 
 }
