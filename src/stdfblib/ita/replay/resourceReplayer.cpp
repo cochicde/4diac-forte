@@ -18,7 +18,8 @@ CResourceReplayer::CResourceReplayer(CResource& paResource, std::vector<EventMes
   // Otherwise, we read the inputs and trace the event, but don't trigger the event itself, meaning
   // that we absorv the event
   // capturing "this" into the lambda created some issues for some reason
-  auto processOneEvent = [ validTypes = forte::unit_test::utils::getValidTypes(mResource), &ecet = this->mEcet](TEventEntry paEvent){
+  auto processOneEvent = [ validTypes = forte::ita::replay::utils::getServiceFunctionBlockTypes(mResource), 
+      &ecet = this->mEcet](TEventEntry paEvent){
 
     // pass through non interesting events
     if(auto type = CStringDictionary::getInstance().getId(paEvent.mFB->getFBTypeName());
@@ -83,7 +84,7 @@ std::optional<TEventEntry> CResourceReplayer::reproduceNextEvent(){
       return toReturn;
     }
 
-    auto functionBlock = forte::unit_test::utils::getFB(&mResource, payload->getInstanceName()); 
+    auto functionBlock = forte::ita::replay::utils::getFB(&mResource, payload->getInstanceName()); 
 
     if(functionBlock == nullptr){
       std::cout << "Could not find the FB " << payload->getInstanceName() << " -> aborting..." << std::endl;
@@ -104,3 +105,5 @@ std::optional<TEventEntry> CResourceReplayer::reproduceNextEvent(){
 
   return std::nullopt;
 }
+
+

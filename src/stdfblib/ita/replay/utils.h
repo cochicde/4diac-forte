@@ -1,0 +1,93 @@
+#pragma once
+
+/*******************************************************************************
+ * Copyright (c) 2025 Jose Cabral
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0.
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ *
+ * Contributors:
+ *    Jose Cabral
+ *      - initial implementation
+ *******************************************************************************/
+
+#include "core/stringdict.h"
+
+#include "core/ecetFactory.h"
+#include "arch/timerHandlerFactory.h"
+#include "core/trace/flexibleTracer.h"
+
+#include <string>
+#include <set>
+#include <unordered_map>
+
+class CFunctionBlock;
+class CDevice;
+class bt_port_output;
+
+namespace forte::core {
+  class CFBContainer;
+}
+
+namespace forte::ita::replay::utils {
+
+ /**
+   * @brief  get the function block instance out of the container. This is just a shorthand for creating the needed parameters for the CFBContainer::getFB
+   * 
+   * @param paContainer Device where the to look for the resource 
+   * @param paFunctionBlockName name of the function block
+   * @return a pointer to the resource with the provided name, nullptr if a resource with the provided name does not exist
+   */
+CFunctionBlock* getFB(forte::core::CFBContainer* paContainer, const std::string& paFunctionBlockName);
+
+  /**
+   * @brief  Same as the previous function, but using other type of input parameter
+   * 
+   * @param paContainer Device where the to look for the resource 
+   * @param paFunctionBlockName name of the function block
+   * @return a pointer to the resource with the provided name, nullptr if a resource with the provided name does not exist
+   */
+CFunctionBlock* getFB(forte::core::CFBContainer* paContainer, CStringDictionary::TStringId paFunctionBlockName);
+
+struct FactoriesSettings {
+  EcetFactory::AvailableEcets mEcet{EcetFactory::AvailableEcets::standard};
+  TimerHandlerFactory::AvailableTimers mTimer{TimerHandlerFactory::AvailableTimers::standard};
+  CFlexibleTracer::AvailableTracers mTracer{CFlexibleTracer::AvailableTracers::BareCtf};
+};
+
+/**
+ * @brief Set the desired factories settings
+ * 
+ * @param paFactoriesSettings settings to be set
+ */
+void setFactoriesSettings(FactoriesSettings paFactoriesSettings);
+
+/**
+ * @brief Get the list of service function block types
+ * 
+ * @return list of of service function block types 
+ */
+std::set<CStringDictionary::TStringId> getServiceFunctionBlockTypes(forte::core::CFBContainer& paContainer);
+
+/**
+ * @brief Get the list of message from a directory containing CTF traces separated by resource
+ * 
+ * @param path directory containing ctf traces
+ * @return events mapped to the resource they belong to
+ */
+std::unordered_map<std::string, std::vector<EventMessage>> getEventMessages(std::string path);
+
+/**
+ * @brief Get the resource name from an output port of the source port of a file source component
+ * 
+ * When creating a source file component, the output ports are based on the files which are based on each resource 
+ * 
+ * @param paPort the port where to read the name from
+ * @return the name of the resource
+ */
+std::string getResourceNameFromTraceOutputPort(const bt_port_output*	paPort);
+
+}

@@ -17,17 +17,13 @@ SET(FORTE_TRACE_CTF_TEST OFF CACHE BOOL "Include CTF trace tests")
 mark_as_advanced(FORTE_TRACE_CTF_TEST)
 if(FORTE_TRACE_CTF_TEST)
 
+  if(NOT FORTE_REPLAY_DEVICE)
+    message(FATAL_ERROR "To compile the Trace CTF tests, the FORTE_REPLAY_DEVICE must be enabled")
+  endif()
+
   SET(SOURCE_GROUP ${SOURCE_GROUP}\\trace)
 
-  forte_test_add_sourcefile_cpp(bt2MessageFactory.cpp)
   forte_test_add_sourcefile_cpp(ctfTracerTest.cpp)
-  forte_test_add_sourcefile_cpp(resourceReplayer.cpp)
-  forte_test_add_sourcefile_cpp(deviceReplayer.cpp)
-  forte_test_add_sourcefile_cpp(TraceReaderSink.cpp)
-  forte_test_add_sourcefile_cpp(utils.cpp)
-
-
-  forte_test_add_link_library(babeltrace2)
 
   SET(REFERENCE_SYSTEMS_FILE ${CMAKE_CURRENT_SOURCE_DIR}/referenceSystem.fboot)
   SET(CTF_OUTPUT_DIR ${CMAKE_BINARY_DIR}/ctfOutput)

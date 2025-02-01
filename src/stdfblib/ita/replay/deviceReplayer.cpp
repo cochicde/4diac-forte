@@ -3,7 +3,6 @@
 
 #include "core/device.h"
 #include "core/ecetFake.h"
-#include "utils.h"
 
 #include <thread>
 

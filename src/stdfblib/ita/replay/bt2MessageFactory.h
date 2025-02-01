@@ -1,12 +1,11 @@
-#ifndef TRACE_MESSAGE_FACTORY_H
-#define TRACE_MESSAGE_FACTORY_H
+#pragma once 
 
 #include "trace/EventMessage.h"
 
 class bt_message;
 
 
-namespace Bt2MessageFactory {
+namespace forte::ita::replay::Bt2MessageFactory {
     /**
      * @brief babeltrace2 message factory
      * 
@@ -17,5 +16,3 @@ namespace Bt2MessageFactory {
      */
     EventMessage createMessage(const bt_message* paMessage);
 };
-
-#endif // TRACE_MESSAGE_FACTORY_H

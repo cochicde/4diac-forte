@@ -175,7 +175,7 @@ namespace {
   }
 }
 
-EventMessage Bt2MessageFactory::createMessage(const bt_message* paMessage){
+EventMessage forte::ita::replay::Bt2MessageFactory::createMessage(const bt_message* paMessage){
   // Borrow the event message's event and its class
   const bt_event *event =
     bt_message_event_borrow_event_const(paMessage);

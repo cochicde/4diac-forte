@@ -1,5 +1,4 @@
-#ifndef _FORTE_TESTS_CORE_TRACE_TRACE_READER_SINK_H_
-#define _FORTE_TESTS_CORE_TRACE_TRACE_READER_SINK_H_
+#pragma once
 
 #include <string>
 #include <vector>
@@ -8,7 +7,7 @@
 
 #include "trace/EventMessage.h"
 
-namespace forte {
+namespace forte::ita::replay {
   /**
    * Used with the babeltrace2 library to read event messages from it and transform them 
    * into EventMessage objects
@@ -33,6 +32,4 @@ namespace forte {
 
     bt_message_iterator *mMessageIterator{nullptr};
   };  
-}
-
-#endif // _FORTE_TESTS_CORE_TRACE_TRACE_READER_SINK_H_
+} // namespace forte::ita::replay
