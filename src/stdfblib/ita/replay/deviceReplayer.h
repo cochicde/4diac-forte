@@ -54,6 +54,13 @@ class CDeviceReplayer {
    */
   std::optional<TEventEntry> reproduceNextEvent(const std::string& paResourceName);
 
+/**
+   * @brief Get all generated events in the device
+   * 
+   * @return list of full events of the device separated by resource name
+   */
+  std::unordered_map<std::string, std::vector<EventMessage>> getGeneratedEvents();
+
   private:
 
   CDevice& mDevice;

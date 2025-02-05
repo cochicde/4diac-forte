@@ -103,6 +103,8 @@ UA_StatusCode ReplayMGR::onReadTraces(UA_Server*,
 
   replayMgr->mDeviceReplayer = std::make_unique<CDeviceReplayer>(replayMgr->mDevice, std::move(replayAlgorithmEvents));
 
+  replayMgr->mDevice.startDevice();
+
   return UA_STATUSCODE_GOOD;
 }
 

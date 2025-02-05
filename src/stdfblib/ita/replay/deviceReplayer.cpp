@@ -27,24 +27,11 @@ CDeviceReplayer::CDeviceReplayer(CDevice& paDevice, const std::unordered_map<std
 
 std::unordered_map<std::string, std::vector<EventMessage>> CDeviceReplayer::reproduceAll(){
 
-  mDevice.startDevice();
-
   std::unordered_map<std::string, std::vector<EventMessage>> generatedMessages;
 
   for(auto& resourceInformation : mResourceInformations){
     generatedMessages.insert({resourceInformation.mResource.getInstanceName(), 
               resourceInformation.mResourceReplayer.reproduceAll()});
-    resourceInformation.mEcet.removeExternalControl();
-  }
-
-  // let it sleep for some time to since if too fast, the stopping signal 
-  // comes too early
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
-  mDevice.changeExecutionState(EMGMCommandType::Kill);
-
-  for(auto& resourceInformation : mResourceInformations){
-    resourceInformation.mEcet.joinEventChainExecutionThread();
   }
 
   return generatedMessages;
@@ -57,4 +44,14 @@ std::optional<TEventEntry> CDeviceReplayer::reproduceNextEvent(const std::string
     }
   }
   return std::nullopt;
+}
+
+std::unordered_map<std::string, std::vector<EventMessage>> CDeviceReplayer::getGeneratedEvents(){
+  std::unordered_map<std::string, std::vector<EventMessage>> generatedMessages;
+  for(auto& resourceInformation : mResourceInformations){
+      generatedMessages.insert({resourceInformation.mResource.getInstanceName(), 
+                resourceInformation.mResourceReplayer.getGeneratedEvents()});
+  }
+
+  return generatedMessages;
 }

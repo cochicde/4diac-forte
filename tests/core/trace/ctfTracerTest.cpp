@@ -88,6 +88,9 @@ namespace {
 
   void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice, const std::size_t milliSeconds);
 
+  void testTraces(CDevice& paDevice, std::unordered_map<std::string, std::vector<EventMessage>>& paAllTracedEvents, 
+  std::unordered_map<std::string, std::vector<EventMessage>>& paAllGeneratedEvents);
+
 }
 
 USE_STRING_ID(Counter);
@@ -663,17 +666,18 @@ void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice,
 
   forte::ita::replay::utils::setFactoriesSettings({});
 
+  auto killDevice = [](CDevice& paDevice, std::size_t paMillisecondsToSleepBeforeKilling = 1000){
+    // wait for all events to be triggered
+    std::this_thread::sleep_for(std::chrono::milliseconds(paMillisecondsToSleepBeforeKilling));
+
+    paDevice.changeExecutionState(EMGMCommandType::Kill);
+    paDevice.awaitShutdown();
+  };
+
   {
     auto device = paCreateDevice(); 
-
-
     device->startDevice();
-    // wait for all events to be triggered
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(milliSeconds));
-
-    device->changeExecutionState(EMGMCommandType::Kill);
-    device->awaitShutdown();
+    killDevice(*device, milliSeconds);
   }
 
   // disable logging 
@@ -686,25 +690,63 @@ void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice,
       TimerHandlerFactory::AvailableTimers::fakeTimer,
       CFlexibleTracer::AvailableTracers::Internal});
 
-  auto device = paCreateDevice(); 
+  // test with reproduce all
+  {
+    auto device = paCreateDevice(); 
 
-  auto allTracedExternalEvents = forte::ita::replay::utils::filterEventsForReplayDevice(allTracedEvents, *device);
+    auto allTracedExternalEvents = forte::ita::replay::utils::filterEventsForReplayDevice(allTracedEvents, *device);
 
-  auto deviceReplayer = CDeviceReplayer(*device, allTracedExternalEvents);
+    std::unordered_map<std::string, std::vector<EventMessage>> reproducedEvents;
 
-  auto reproducedEvents = deviceReplayer.reproduceAll();
+    {
+      auto deviceReplayer = CDeviceReplayer(*device, allTracedExternalEvents);
+      device->startDevice();
+      reproducedEvents = deviceReplayer.reproduceAll();
+    }
 
+    killDevice(*device);
+
+    testTraces(*device, allTracedEvents, reproducedEvents);
+    
+  }
+
+  // test with reproduce next event
+  {
+    auto device = paCreateDevice(); 
+
+    auto allTracedExternalEvents = forte::ita::replay::utils::filterEventsForReplayDevice(allTracedEvents, *device);
+
+    auto deviceReplayer = CDeviceReplayer(*device, allTracedExternalEvents);
+
+    device->startDevice();
+
+    for(auto container : device->getChildren()){
+      auto resourceName = container->getInstanceName();
+      while(deviceReplayer.reproduceNextEvent(resourceName));
+    }
+
+    auto reproducedEvents = deviceReplayer.getGeneratedEvents();
+
+    killDevice(*device);
+
+    testTraces(*device, allTracedEvents, reproducedEvents);
+  }
+}
+
+void testTraces(CDevice& paDevice, std::unordered_map<std::string, std::vector<EventMessage>>& paAllTracedEvents, 
+  std::unordered_map<std::string, std::vector<EventMessage>>& paAllGeneratedEvents) {
+  
   // To test the algorithm, we compare only the outputs events to the generated ones
   auto isInteretingType = [](const EventMessage& paMessage){
     auto messageType = paMessage.getEventType();
     return messageType == "sendOutputEvent";
   };
 
-  auto allInterestingEvents = forte::ita::replay::utils::filterEvents(allTracedEvents, isInteretingType);
+  auto allInterestingEvents = forte::ita::replay::utils::filterEvents(paAllTracedEvents, isInteretingType);
 
-  allInterestingEvents.erase(device->getInstanceName());
+  allInterestingEvents.erase(paDevice.getInstanceName());
 
-  auto interestingGeneratedMessages = forte::ita::replay::utils::filterEvents(reproducedEvents, isInteretingType);
+  auto interestingGeneratedMessages = forte::ita::replay::utils::filterEvents(paAllGeneratedEvents, isInteretingType);
 
   checkMessages(allInterestingEvents, interestingGeneratedMessages);
 }

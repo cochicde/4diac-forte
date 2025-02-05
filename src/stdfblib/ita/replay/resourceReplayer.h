@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 #include <optional>
+#include <functional>
 
 #include "EventMessage.h"
 #include "core/stringdict.h"
@@ -16,7 +17,8 @@ class CResource;
 class CFakeEventExecutionThread;
 
 /**
- * @brief Algorithm to generate the full series of event in a resource from the subset of output events of Service Function Blocks 
+ * @brief Takes external control of the ecet of a resource and reproduce all the events based on a list of external events. 
+ * On destructoin, the ecet is released and let run freely.
  * 
  */
 class  CResourceReplayer {
@@ -29,7 +31,19 @@ class  CResourceReplayer {
    */
   CResourceReplayer(CResource& paResource, std::vector<EventMessage> paExternalEvents);
 
-  ~CResourceReplayer() = default;
+  ~CResourceReplayer();
+
+  CResourceReplayer(const CResourceReplayer&) = delete;
+  CResourceReplayer& operator=(const CResourceReplayer&) = delete;
+
+  /**
+   * @brief Move constructor. Transfers ownership and keep the ecet in external control mode
+   * 
+   * @param paOther object to construct from
+   */
+  CResourceReplayer(CResourceReplayer&& paOther);
+  CResourceReplayer& operator=(CResourceReplayer&& paOther) = delete;
+
 
   /**
    * @brief Executes the algorithm tha generates the full set of events of the resource
@@ -46,6 +60,13 @@ class  CResourceReplayer {
    */
   std::optional<TEventEntry> reproduceNextEvent();
 
+  /**
+   * @brief Get all generated events in the resource
+   * 
+   * @return all generated events
+   */
+  std::vector<EventMessage>  getGeneratedEvents();
+
   private:
 
   CResource& mResource;
@@ -55,4 +76,7 @@ class  CResourceReplayer {
   size_t mStepperIndex{0};
 
   const std::vector<EventMessage> mExternalEvents;
+
+  /// member that releases control of the ecet on destruction of the last object which was moved into
+  std::function<void(void)> mReleaseEcet;
 };

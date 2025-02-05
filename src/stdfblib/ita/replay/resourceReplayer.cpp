@@ -42,22 +42,26 @@ CResourceReplayer::CResourceReplayer(CResource& paResource, std::vector<EventMes
   };
 
   mEcet.setRemoteCallbackForEventTriggering(processOneEvent);
+  mReleaseEcet = [&ecet = mEcet](){
+    ecet.removeExternalControl();
+  };
+}
+
+CResourceReplayer::~CResourceReplayer() {
+  if(mReleaseEcet){
+    mReleaseEcet();
+  }
+}
+
+CResourceReplayer::CResourceReplayer(CResourceReplayer&& paOther) : mResource{paOther.mResource}, mEcet{paOther.mEcet}, mStepperIndex{paOther.mStepperIndex}, mExternalEvents{std::move(paOther.mExternalEvents)}, mReleaseEcet(std::move(paOther.mReleaseEcet)){
+  paOther.mReleaseEcet = nullptr;
 }
 
 std::vector<EventMessage> CResourceReplayer::reproduceAll(){
   
   while(reproduceNextEvent() != std::nullopt);
 
-  return std::visit(
-    [this](auto&& paTracer) -> std::vector<EventMessage> {
-      using T = std::decay_t<decltype(paTracer)>;
-      if constexpr (std::is_same_v<T, CInternalTracer> == true) {
-        return paTracer.getEvents();
-      }
-      return {};
-    }, 
-    mResource.getTracer().getTracerVariant()
-  );
+  return getGeneratedEvents();
 }
 
 std::optional<TEventEntry> CResourceReplayer::reproduceNextEvent(){
@@ -105,5 +109,19 @@ std::optional<TEventEntry> CResourceReplayer::reproduceNextEvent(){
 
   return std::nullopt;
 }
+
+std::vector<EventMessage> CResourceReplayer::getGeneratedEvents() {
+ return std::visit(
+    [this](auto&& paTracer) -> std::vector<EventMessage> {
+      using T = std::decay_t<decltype(paTracer)>;
+      if constexpr (std::is_same_v<T, CInternalTracer> == true) {
+        return paTracer.getEvents();
+      }
+      return {};
+    }, 
+    mResource.getTracer().getTracerVariant()
+  );
+}
+
 
 
