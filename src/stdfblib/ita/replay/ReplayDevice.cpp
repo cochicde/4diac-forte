@@ -28,3 +28,18 @@ int ReplayDevice::startDevice() {
   }
   return 0;
 }
+
+void ReplayDevice::startControlling(){
+  mAlreadyControlled = true;
+}
+
+EMGMResponse ReplayDevice::executeMGMCommand(forte::core::SManagementCMD &paCommand) {
+  // the kill command is the only one that we let through before
+  // the replay algorithm starts controlling the device
+  // this is meant to not receive the Start command from the IDE which should be
+  // handle only after the deviceReplayer was created
+  if(paCommand.mCMD == EMGMCommandType::Start && !mAlreadyControlled){
+    return EMGMResponse::Ready;
+  }
+  return CDevice::executeMGMCommand(paCommand);
+}

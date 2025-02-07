@@ -28,7 +28,15 @@ public:
 
   int startDevice() override;
 
+  EMGMResponse executeMGMCommand(forte::core::SManagementCMD &paCommand) override;
+
+  void startControlling();
+
   OPCUA_MGR mOpcuaMgr;
 
   ReplayMGR mReplayMgr;
+
+  private:
+
+  bool mAlreadyControlled{false};
 };

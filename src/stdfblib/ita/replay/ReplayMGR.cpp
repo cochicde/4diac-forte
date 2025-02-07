@@ -13,12 +13,15 @@
 
 #include "ReplayMGR.h"
 
+
 #include "core/ecetFactory.h"
 #include "core/trace/flexibleTracer.h"
 #include "core/ecetFake.h"
 #include "stdfblib/ita/replay/utils.h"
+#include "stdfblib/ita/replay/ReplayDevice.h"
 
-ReplayMGR::ReplayMGR(CDevice& paDevice, OPCUA_MGR& paOpcuaMgr) : 
+
+ReplayMGR::ReplayMGR(ReplayDevice& paDevice, OPCUA_MGR& paOpcuaMgr) : 
   mDevice(paDevice), mOpcuaMgr(paOpcuaMgr), mDebugMgr(paDevice, paOpcuaMgr) {
   // we need the fake ecet to debug control the device remotely
   EcetFactory::setEcetToCreate(EcetFactory::AvailableEcets::fake);
@@ -102,6 +105,26 @@ UA_StatusCode ReplayMGR::onReadTraces(UA_Server*,
   auto replayAlgorithmEvents = forte::ita::replay::utils::filterEventsForReplayDevice(events, replayMgr->mDevice);
 
   replayMgr->mDeviceReplayer = std::make_unique<CDeviceReplayer>(replayMgr->mDevice, std::move(replayAlgorithmEvents));
+
+  // this will allow the Start command in the ReplayDevice to go through
+  replayMgr->mDevice.startControlling();
+
+  {
+    // at this point the device is running,
+    // but the deployed application (resources and FBs are still idle)
+    // we then stop and start again the device
+    // the stop returns a invalid state result because
+    // the application cannot be stopped in the iddle state
+    // but we don't care about it, since the start command later
+    // can still start everything, the device and the application
+    forte::core::SManagementCMD command; 
+    command.mCMD = EMGMCommandType::Stop;
+    command.mDestination = CStringDictionary::scmInvalidStringId;
+    replayMgr->mDevice.executeMGMCommand(command);
+
+    command.mCMD = EMGMCommandType::Start;
+    replayMgr->mDevice.executeMGMCommand(command);
+  }
 
   replayMgr->mDevice.startDevice();
 

@@ -25,6 +25,7 @@
 class CDevice;
 class CResource;
 class CFakeEventExecutionThread;
+class ReplayDevice;
 
 /**
  * @brief Gets a OPCUA_MGR object and adds device and resource methods on top of that
@@ -40,7 +41,7 @@ class ReplayMGR {
 
 public:
 
-  ReplayMGR(CDevice& paDevice, OPCUA_MGR& paOpcuaMgr);
+  ReplayMGR(ReplayDevice& paDevice, OPCUA_MGR& paOpcuaMgr);
   ~ReplayMGR();
   
   /**
@@ -53,7 +54,7 @@ public:
 private:
 
   // device on which the methods will be executed
-  CDevice& mDevice;
+  ReplayDevice& mDevice;
   
   // OpcUa Mgr on top of which the extra debugging methods will be added
   OPCUA_MGR& mOpcuaMgr;
