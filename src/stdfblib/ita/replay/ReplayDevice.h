@@ -39,4 +39,11 @@ public:
   private:
 
   bool mAlreadyControlled{false};
+
+  // the timer factory has to be set to the fake one, which needs to be done before the 
+  // parent class is constructed, since the timer is created in the device execution,
+  // a member of the CDevice, so in the constructor of this class it's already too late.
+  // this method then is executed before calling the parent, giving the chance to set
+  // the timer to the fake one.
+  const std::string& setInitialState(const std::string& paMGRID);
 };

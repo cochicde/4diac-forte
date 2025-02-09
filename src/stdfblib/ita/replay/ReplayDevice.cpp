@@ -13,8 +13,12 @@
 
 #include "ReplayDevice.h"
 
+#include "arch/timerHandlerFactory.h"
+#include "core/ecetFactory.h"
+#include "core/trace/flexibleTracer.h"
+
 ReplayDevice::ReplayDevice(const std::string &paMGRID) : 
-  RMT_DEV(paMGRID), mOpcuaMgr(*this), mReplayMgr(*this, mOpcuaMgr) {
+  RMT_DEV(setInitialState(paMGRID)), mOpcuaMgr(*this), mReplayMgr(*this, mOpcuaMgr) {
 }
 
 int ReplayDevice::startDevice() {
@@ -42,4 +46,11 @@ EMGMResponse ReplayDevice::executeMGMCommand(forte::core::SManagementCMD &paComm
     return EMGMResponse::Ready;
   }
   return CDevice::executeMGMCommand(paCommand);
+}
+
+const std::string& ReplayDevice::setInitialState(const std::string& paMGRID) {
+  TimerHandlerFactory::setTimeHandlerNameToCreate(TimerHandlerFactory::AvailableTimers::fakeTimer);
+  EcetFactory::setEcetToCreate(EcetFactory::AvailableEcets::fake);
+  CFlexibleTracer::setTracer(CFlexibleTracer::AvailableTracers::Internal);
+  return paMGRID;
 }

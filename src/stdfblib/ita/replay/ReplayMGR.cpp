@@ -13,23 +13,13 @@
 
 #include "ReplayMGR.h"
 
-
-#include "core/ecetFactory.h"
-#include "core/trace/flexibleTracer.h"
 #include "core/ecetFake.h"
 #include "stdfblib/ita/replay/utils.h"
 #include "stdfblib/ita/replay/ReplayDevice.h"
 
-
 ReplayMGR::ReplayMGR(ReplayDevice& paDevice, OPCUA_MGR& paOpcuaMgr) : 
   mDevice(paDevice), mOpcuaMgr(paOpcuaMgr), mDebugMgr(paDevice, paOpcuaMgr) {
-  // we need the fake ecet to debug control the device remotely
-  EcetFactory::setEcetToCreate(EcetFactory::AvailableEcets::fake);
-  CFlexibleTracer::setTracer(CFlexibleTracer::AvailableTracers::Internal);
-}
 
-ReplayMGR::~ReplayMGR() {
-  CFlexibleTracer::setTracer(CFlexibleTracer::AvailableTracers::BareCtf);
 }
 
 bool ReplayMGR::initialize(){

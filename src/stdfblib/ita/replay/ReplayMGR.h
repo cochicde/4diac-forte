@@ -42,7 +42,7 @@ class ReplayMGR {
 public:
 
   ReplayMGR(ReplayDevice& paDevice, OPCUA_MGR& paOpcuaMgr);
-  ~ReplayMGR();
+  ~ReplayMGR() = default;
   
   /**
    * @brief Add debugging methods to the OPCUA_MGR object
