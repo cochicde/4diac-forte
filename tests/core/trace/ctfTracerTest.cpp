@@ -199,7 +199,7 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
   // resourceMessages.emplace_back("sendOutputEvent", std::make_unique<FBOutputEventPayload>("E_CTU", "Counter", 1, eventCounter, std::vector<std::string>{"FALSE", "0"}),0);
   // addFinalEvents(resourceMessages, eventCounter);
 
-  auto ctfMessages = forte::ita::replay::utils::getEventMessages(CTF_OUTPUT_DIR);
+  auto ctfMessages = forte::ita::replay::utils::getEventMessages(CTF_OUTPUT_DIR).value();
 
   checkMessages(expectedMessages, ctfMessages);
 }
@@ -683,7 +683,7 @@ void testAlgorithm(std::function<std::unique_ptr<CDevice>(void)> paCreateDevice,
   // disable logging 
   BarectfPlatformFORTE::setup("");
 
-  auto allTracedEvents = forte::ita::replay::utils::getEventMessages(CTF_OUTPUT_DIR);
+  auto allTracedEvents = forte::ita::replay::utils::getEventMessages(CTF_OUTPUT_DIR).value();
 
   forte::ita::replay::utils::setFactoriesSettings(
       {EcetFactory::AvailableEcets::fake,

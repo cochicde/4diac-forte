@@ -4,6 +4,7 @@
 #include "basicfb.h"
 #include "utils/parameterParser.h"
 #include "core/device.h"
+#include "arch/devlog.h"
 
 #include <babeltrace2/babeltrace.h>
 
@@ -79,7 +80,7 @@ std::set<CStringDictionary::TStringId> getServiceFunctionBlockTypes(forte::core:
 }
 
 
-std::unordered_map<std::string, std::vector<EventMessage>> getEventMessages(std::string path){
+std::optional<std::unordered_map<std::string, std::vector<EventMessage>>> getEventMessages(std::string path){
   
   // create graph
   auto graph = bt_graph_create(0);
@@ -87,8 +88,8 @@ std::unordered_map<std::string, std::vector<EventMessage>> getEventMessages(std:
   // Source file Component
   const bt_plugin* ctfPlugin;
   if(BT_PLUGIN_FIND_STATUS_OK != bt_plugin_find("ctf", BT_FALSE, BT_FALSE, BT_TRUE, BT_FALSE, BT_TRUE, &ctfPlugin)){
-    std::cout << "Could not load ctf plugin" << std::endl;
-    std::abort();
+    DEVLOG_ERROR("Could not load ctf plugin\n");
+    return std::nullopt;
   }
   auto fileSourceClass = bt_plugin_borrow_source_component_class_by_name_const(ctfPlugin, "fs"); 
 
@@ -98,32 +99,32 @@ std::unordered_map<std::string, std::vector<EventMessage>> getEventMessages(std:
   bt_value *dirsArray;
 
   if(BT_VALUE_MAP_INSERT_ENTRY_STATUS_OK != bt_value_map_insert_empty_array_entry(parameters, "inputs", &dirsArray)){
-    std::cout << "Could not add empty array to map parameter for ctf.source.fs component" << std::endl;
-    std::abort();
+    DEVLOG_ERROR("Could not add empty array to map parameter for ctf.source.fs component\n");
+    return std::nullopt;
   }
 
   if(BT_VALUE_ARRAY_APPEND_ELEMENT_STATUS_OK != bt_value_array_append_string_element(dirsArray, path.c_str())){
-    std::cout << "Could not add input folder to ctf.source.fs component's input parameter" << std::endl;
-    std::abort();
+    DEVLOG_ERROR("Could not add input folder to ctf.source.fs component's input parameter\n");
+    return std::nullopt;
   }
 
   if(BT_GRAPH_ADD_COMPONENT_STATUS_OK != bt_graph_add_source_component(graph, fileSourceClass, "traces", parameters, BT_LOGGING_LEVEL_TRACE, &tracesComponent)){
-    std::cout << "Could not create Source component" << std::endl;
-    std::abort();
+    DEVLOG_ERROR("Could not create Source component\n");
+    return std::nullopt;
   }
 
   // Forte event reader component
 
   const bt_plugin* fortePlugin;
   if(BT_PLUGIN_FIND_STATUS_OK != bt_plugin_find("forte", BT_FALSE, BT_FALSE, BT_FALSE, BT_TRUE, BT_TRUE, &fortePlugin)){
-    std::cout << "Could not load forte plugin" << std::endl;
-    std::abort();
+    DEVLOG_ERROR("Could not load forte plugin\n");
+    return std::nullopt;
   }
   auto forteReaderClass = bt_plugin_borrow_sink_component_class_by_name_const(fortePlugin, "event_reader"); 
 
   std::unordered_map<std::string, std::vector<EventMessage>> messages;
 
-  // create a sink forte even reader component for each resource
+  // create a sink forte event reader component for each resource
   for(uint64_t i = 0; i < bt_component_source_get_output_port_count(tracesComponent); i++){
     auto port = bt_component_source_borrow_output_port_by_index_const(tracesComponent, i);
     auto resourceName = getResourceNameFromTraceOutputPort(port);
@@ -134,22 +135,22 @@ std::unordered_map<std::string, std::vector<EventMessage>> getEventMessages(std:
 
     if(BT_GRAPH_ADD_COMPONENT_STATUS_OK != 
     bt_graph_add_sink_component_with_initialize_method_data(graph, forteReaderClass, componentName.c_str(), nullptr, &messages[resourceName], BT_LOGGING_LEVEL_TRACE, &forteReaderComponent)){
-      std::cout << "Could not create forte event reader component number " << i << std::endl;
-      std::abort();
+      DEVLOG_ERROR("Could not create forte event reader component number %d\n", i);
+      return std::nullopt;
     }
 
     if(BT_GRAPH_CONNECT_PORTS_STATUS_OK !=  bt_graph_connect_ports(graph, 
         bt_component_source_borrow_output_port_by_index_const(tracesComponent, i), 
         bt_component_sink_borrow_input_port_by_index_const(forteReaderComponent, 0),
         nullptr)){
-          std::cout << "Could not add connection " << i << " from source to forte" << std::endl;
-          std::abort();
+          DEVLOG_ERROR("Could not add connection %d from source to forte\n", i);
+          return std::nullopt;
       }
   }    
 
   if(BT_GRAPH_RUN_STATUS_OK != bt_graph_run(graph)){
-    std::cout << "Could not run graph" << std::endl;
-    std::abort();
+    DEVLOG_ERROR("Could not run graph\n");
+    return std::nullopt;
   }
 
   return messages;

@@ -24,6 +24,7 @@
 #include <set>
 #include <unordered_map>
 #include <functional>
+#include <optional>
 
 class CFunctionBlock;
 class CDevice;
@@ -69,6 +70,7 @@ void setFactoriesSettings(FactoriesSettings paFactoriesSettings);
 /**
  * @brief Get the list of service function block types
  * 
+ * @param paContainer container where to look for the types
  * @return list of of service function block types 
  */
 std::set<CStringDictionary::TStringId> getServiceFunctionBlockTypes(forte::core::CFBContainer& paContainer);
@@ -77,9 +79,9 @@ std::set<CStringDictionary::TStringId> getServiceFunctionBlockTypes(forte::core:
  * @brief Get the list of message from a directory containing CTF traces separated by resource
  * 
  * @param path directory containing ctf traces
- * @return events mapped to the resource they belong to
+ * @return events mapped to the resource they belong to if there was no issue, nullopt otherwise
  */
-std::unordered_map<std::string, std::vector<EventMessage>> getEventMessages(std::string path);
+std::optional<std::unordered_map<std::string, std::vector<EventMessage>>> getEventMessages(std::string path);
 
 /**
  * @brief Get the resource name from an output port of the source port of a file source component

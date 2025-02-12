@@ -103,7 +103,7 @@ static bt_component_class_initialize_method_status forte_events_reader_initializ
   
   if(initialize_method_data == nullptr){
     std::cout << "You need to pass a valid pointer initialize_method_data when creating a event_reader sink instance" << std::endl;
-    std::abort();
+    return BT_COMPONENT_CLASS_INITIALIZE_METHOD_STATUS_ERROR;
   }
 
   // the allocated pointer is stored inside the class when "this" is passed to the
