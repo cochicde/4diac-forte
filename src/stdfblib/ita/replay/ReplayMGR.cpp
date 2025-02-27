@@ -145,7 +145,7 @@ UA_StatusCode ReplayMGR::onReplayNextEvent(UA_Server*,
     auto event = nextEvent.value();
     auto functionBlockName = event.mFB->getFullQualifiedApplicationInstanceName('.');
     const auto interface = event.mFB->getFBInterfaceSpec();
-    auto portName = std::string(CStringDictionary::getInstance().get(interface.mEINames[event.mPortId]));
+    auto portName = std::string(CStringDictionary::get(interface.mEINames[event.mPortId]));
     response = UA_String_fromChars(std::string(functionBlockName + "." + portName).c_str());
   } else {
     response = UA_String_fromChars("");

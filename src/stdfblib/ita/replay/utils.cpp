@@ -2,7 +2,7 @@
 #include "core/fbcontainer.h"
 #include "cfb.h"
 #include "basicfb.h"
-#include "utils/parameterParser.h"
+#include "util/parameterParser.h"
 #include "core/device.h"
 #include "arch/devlog.h"
 
@@ -24,14 +24,14 @@ CFunctionBlock* getFB(forte::core::CFBContainer* paContainer, const std::string&
   std::string fbNamePart(paFunctionBlockName);
   size_t index = fbNamePart.find_first_of(".");
   while (index != std::string::npos) {
-    id.pushBack(CStringDictionary::getInstance().insert(fbNamePart.substr(0, index).c_str()));
+    id.push_back(CStringDictionary::insert(fbNamePart.substr(0, index).c_str()));
     fbNamePart = fbNamePart.substr(index + 1);
     index = fbNamePart.find_first_of(".");
   }
-  id.pushBack(CStringDictionary::getInstance().insert(fbNamePart.substr(0, index).c_str()));
+  id.push_back(CStringDictionary::insert(fbNamePart.substr(0, index).c_str()));
 
-  forte::core::TNameIdentifier::CIterator nonConstIterator(id.begin());
-  return paContainer->getFB(nonConstIterator);
+  auto it = id.cbegin();
+  return paContainer->getFB(it, id.cend());
 }
 
 CFunctionBlock* getFB(forte::core::CFBContainer* paContainer, CStringDictionary::TStringId paFunctionBlockName) {
@@ -39,9 +39,9 @@ CFunctionBlock* getFB(forte::core::CFBContainer* paContainer, CStringDictionary:
     return nullptr;
   }
   forte::core::TNameIdentifier id;
-  id.pushBack(paFunctionBlockName);
-  forte::core::TNameIdentifier::CIterator nonConstIterator(id.begin());
-  return paContainer->getFB(nonConstIterator);
+  id.push_back(paFunctionBlockName);
+  auto it = id.cbegin();
+  return paContainer->getFB(it, id.cend());
 }
 
 void setFactoriesSettings(FactoriesSettings paFactoriesSettings){
@@ -207,7 +207,7 @@ std::unordered_map<std::string, std::vector<EventMessage>> filterEventsForReplay
     if(paMessage.getEventType() != "sendOutputEvent"){
       return false;
     }
-    auto type = CStringDictionary::getInstance().getId(paMessage.getPayload<AbstractPayload>()->getTypeName().c_str());
+    auto type = CStringDictionary::getId(paMessage.getPayload<AbstractPayload>()->getTypeName().c_str());
     return validTypes.find(type) != validTypes.end();
   };
 

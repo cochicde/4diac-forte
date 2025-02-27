@@ -22,7 +22,7 @@ CResourceReplayer::CResourceReplayer(CResource& paResource, std::vector<EventMes
       &ecet = this->mEcet](TEventEntry paEvent){
 
     // pass through non interesting events
-    if(auto type = CStringDictionary::getInstance().getId(paEvent.mFB->getFBTypeName());
+    if(auto type = CStringDictionary::getId(paEvent.mFB->getFBTypeName());
         validTypes.find(type) == validTypes.end()){
      
       paEvent.mFB->receiveInputEvent(paEvent.mPortId, &ecet);

@@ -161,19 +161,19 @@ BOOST_AUTO_TEST_CASE(sequential_events_test) {
   // };
 
   // device resource has no events
-  expectedMessages[CStringDictionary::getInstance().get(deviceName)] = {}; 
+  expectedMessages[CStringDictionary::get(deviceName)] = {}; 
 
   // default resource in the test device
-  expectedMessages[CStringDictionary::getInstance().get(g_nStringIdEMB_RES)] = {}; 
+  expectedMessages[CStringDictionary::get(g_nStringIdEMB_RES)] = {}; 
 
-  // auto& defaultResourceMessages = expectedMessages[CStringDictionary::getInstance().get(g_nStringIdEMB_RES)];
+  // auto& defaultResourceMessages = expectedMessages[CStringDictionary::get(g_nStringIdEMB_RES)];
   // addInitialEvents(defaultResourceMessages);
   // addFinalEvents(defaultResourceMessages, 0); // the RESTART output event doesn't generate any event since it's not connected to anything
   
   // resource with example FBs
-  expectedMessages[CStringDictionary::getInstance().get(resourceName)] = {};
+  expectedMessages[CStringDictionary::get(resourceName)] = {};
 
-  auto& resourceMessages = expectedMessages[CStringDictionary::getInstance().get(resourceName)];
+  auto& resourceMessages = expectedMessages[CStringDictionary::get(resourceName)];
   addInitialEvents(resourceMessages);
 
   auto eventCounter = 0;
@@ -332,7 +332,7 @@ std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStrin
     auto ctuName = g_nStringIdE_CTU;
     auto publishName = g_nStringIdPUBLISH_1;
 
-    BOOST_TEST_INFO(CStringDictionary::getInstance().get(paResourceName1));
+    BOOST_TEST_INFO(CStringDictionary::get(paResourceName1));
 
     BOOST_TEST_INFO("Create FB Cycle");
     BOOST_ASSERT(EMGMResponse::Ready == resource->createFB(cycleName, g_nStringIdE_CYCLE));
@@ -349,47 +349,47 @@ std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStrin
 
     // Events
     BOOST_TEST_INFO("Event connection: Start.COLD -> PUBLISH.INIT");
-    command.mFirstParam.pushBack(g_nStringIdSTART);
-    command.mFirstParam.pushBack(g_nStringIdCOLD);
-    command.mSecondParam.pushBack(publishName);
-    command.mSecondParam.pushBack(g_nStringIdINIT);
+    command.mFirstParam.push_back(g_nStringIdSTART);
+    command.mFirstParam.push_back(g_nStringIdCOLD);
+    command.mSecondParam.push_back(publishName);
+    command.mSecondParam.push_back(g_nStringIdINIT);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: Publish.INITO -> Cycle.START");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(publishName);
-    command.mFirstParam.pushBack(g_nStringIdINITO);
+    command.mFirstParam.push_back(publishName);
+    command.mFirstParam.push_back(g_nStringIdINITO);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(cycleName);
-    command.mSecondParam.pushBack(g_nStringIdSTART);
+    command.mSecondParam.push_back(cycleName);
+    command.mSecondParam.push_back(g_nStringIdSTART);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: Cycle.EO -> CTU.CU");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(cycleName);
-    command.mFirstParam.pushBack(g_nStringIdEO);
+    command.mFirstParam.push_back(cycleName);
+    command.mFirstParam.push_back(g_nStringIdEO);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(ctuName);
-    command.mSecondParam.pushBack(g_nStringIdCU);
+    command.mSecondParam.push_back(ctuName);
+    command.mSecondParam.push_back(g_nStringIdCU);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: CTU.CUO -> Publish.REQ");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(ctuName);
-    command.mFirstParam.pushBack(g_nStringIdCUO);
+    command.mFirstParam.push_back(ctuName);
+    command.mFirstParam.push_back(g_nStringIdCUO);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(publishName);
-    command.mSecondParam.pushBack(g_nStringIdREQ);
+    command.mSecondParam.push_back(publishName);
+    command.mSecondParam.push_back(g_nStringIdREQ);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     // Data
     BOOST_TEST_INFO("Event connection: CTU.CV -> Publish.SD_1");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(ctuName);
-    command.mFirstParam.pushBack(g_nStringIdCV);
+    command.mFirstParam.push_back(ctuName);
+    command.mFirstParam.push_back(g_nStringIdCV);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(publishName);
-    command.mSecondParam.pushBack(g_nStringIdSD_1);
+    command.mSecondParam.push_back(publishName);
+    command.mSecondParam.push_back(g_nStringIdSD_1);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     // Literals
@@ -397,31 +397,31 @@ std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStrin
 
     BOOST_TEST_INFO("Literal: Cycle.DT -> T#200ms");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(cycleName);
-    command.mFirstParam.pushBack(g_nStringIdDT);
+    command.mFirstParam.push_back(cycleName);
+    command.mFirstParam.push_back(g_nStringIdDT);
     command.mAdditionalParams = "T#200ms";
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Literal: CTU.PV -> 0");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(ctuName);
-    command.mFirstParam.pushBack(g_nStringIdPV);
+    command.mFirstParam.push_back(ctuName);
+    command.mFirstParam.push_back(g_nStringIdPV);
     command.mAdditionalParams = "0";
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
 
     BOOST_TEST_INFO("Literal: Pulbish.QI -> TRUE");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(publishName);
-    command.mFirstParam.pushBack(g_nStringIdQI);
+    command.mFirstParam.push_back(publishName);
+    command.mFirstParam.push_back(g_nStringIdQI);
     command.mAdditionalParams = "TRUE";
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
 
     BOOST_TEST_INFO("Literal: Pulbish.ID -> 239.0.0.1:61000");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(publishName);
-    command.mFirstParam.pushBack(g_nStringIdID);
+    command.mFirstParam.push_back(publishName);
+    command.mFirstParam.push_back(g_nStringIdID);
     command.mAdditionalParams = "239.0.0.1:61000";
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
@@ -440,7 +440,7 @@ std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStrin
     auto uint2uintSecond = g_nStringIdUINT2UINT_1;
     auto uint2uintThird = g_nStringIdUINT2UINT_2;
 
-    BOOST_TEST_INFO(CStringDictionary::getInstance().get(paResourceName2));
+    BOOST_TEST_INFO(CStringDictionary::get(paResourceName2));
 
     BOOST_TEST_INFO("Create FB Subscribe");
     BOOST_ASSERT(EMGMResponse::Ready == resource->createFB(subscribeName, g_nStringIdSUBSCRIBE_1));
@@ -472,137 +472,137 @@ std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStrin
 
     // Events
     BOOST_TEST_INFO("Event connection: Start.COLD -> SUBSCRIBE.INIT");
-    command.mFirstParam.pushBack(g_nStringIdSTART);
-    command.mFirstParam.pushBack(g_nStringIdCOLD);
-    command.mSecondParam.pushBack(subscribeName);
-    command.mSecondParam.pushBack(g_nStringIdINIT);
+    command.mFirstParam.push_back(g_nStringIdSTART);
+    command.mFirstParam.push_back(g_nStringIdCOLD);
+    command.mSecondParam.push_back(subscribeName);
+    command.mSecondParam.push_back(g_nStringIdINIT);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: SUBSCRIBE.INIT -> Cycle.START");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(subscribeName);
-    command.mFirstParam.pushBack(g_nStringIdINITO);
+    command.mFirstParam.push_back(subscribeName);
+    command.mFirstParam.push_back(g_nStringIdINITO);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(cycleName);
-    command.mSecondParam.pushBack(g_nStringIdSTART);
+    command.mSecondParam.push_back(cycleName);
+    command.mSecondParam.push_back(g_nStringIdSTART);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
     
     BOOST_TEST_INFO("Event connection: Cycle.EO -> CTU.CU");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(cycleName);
-    command.mFirstParam.pushBack(g_nStringIdEO);
+    command.mFirstParam.push_back(cycleName);
+    command.mFirstParam.push_back(g_nStringIdEO);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(ctuName);
-    command.mSecondParam.pushBack(g_nStringIdCU);
+    command.mSecondParam.push_back(ctuName);
+    command.mSecondParam.push_back(g_nStringIdCU);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: CTU.CUO -> ADD.REQ");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(ctuName);
-    command.mFirstParam.pushBack(g_nStringIdCUO);
+    command.mFirstParam.push_back(ctuName);
+    command.mFirstParam.push_back(g_nStringIdCUO);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(addName);
-    command.mSecondParam.pushBack(g_nStringIdREQ);
+    command.mSecondParam.push_back(addName);
+    command.mSecondParam.push_back(g_nStringIdREQ);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: ADD.CNF -> UINT2UINT_3.REQ");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(addName);
-    command.mFirstParam.pushBack(g_nStringIdCNF);
+    command.mFirstParam.push_back(addName);
+    command.mFirstParam.push_back(g_nStringIdCNF);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(uint2uintThird);
-    command.mSecondParam.pushBack(g_nStringIdREQ);
+    command.mSecondParam.push_back(uint2uintThird);
+    command.mSecondParam.push_back(g_nStringIdREQ);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: SUBSCRIBE.IND -> UINT2UINT_1.REQ");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(subscribeName);
-    command.mFirstParam.pushBack(g_nStringIdIND);
+    command.mFirstParam.push_back(subscribeName);
+    command.mFirstParam.push_back(g_nStringIdIND);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(uint2uintFirst);
-    command.mSecondParam.pushBack(g_nStringIdREQ);
+    command.mSecondParam.push_back(uint2uintFirst);
+    command.mSecondParam.push_back(g_nStringIdREQ);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: UINT2UINT_1.CNF -> MUL.REQ");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(uint2uintFirst);
-    command.mFirstParam.pushBack(g_nStringIdCNF);
+    command.mFirstParam.push_back(uint2uintFirst);
+    command.mFirstParam.push_back(g_nStringIdCNF);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(mulName);
-    command.mSecondParam.pushBack(g_nStringIdREQ);
+    command.mSecondParam.push_back(mulName);
+    command.mSecondParam.push_back(g_nStringIdREQ);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: MUL.CNF -> UINT2UINT_2.REQ");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(mulName);
-    command.mFirstParam.pushBack(g_nStringIdCNF);
+    command.mFirstParam.push_back(mulName);
+    command.mFirstParam.push_back(g_nStringIdCNF);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(uint2uintSecond);
-    command.mSecondParam.pushBack(g_nStringIdREQ);
+    command.mSecondParam.push_back(uint2uintSecond);
+    command.mSecondParam.push_back(g_nStringIdREQ);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: UINT2UINT_2.CNF -> ADD.REQ");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(uint2uintSecond);
-    command.mFirstParam.pushBack(g_nStringIdCNF);
+    command.mFirstParam.push_back(uint2uintSecond);
+    command.mFirstParam.push_back(g_nStringIdCNF);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(addName);
-    command.mSecondParam.pushBack(g_nStringIdREQ);
+    command.mSecondParam.push_back(addName);
+    command.mSecondParam.push_back(g_nStringIdREQ);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     // Data
     BOOST_TEST_INFO("Event connection: CTU.CV -> ADD.IN1");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(ctuName);
-    command.mFirstParam.pushBack(g_nStringIdCV);
+    command.mFirstParam.push_back(ctuName);
+    command.mFirstParam.push_back(g_nStringIdCV);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(addName);
-    command.mSecondParam.pushBack(g_nStringIdIN1);
+    command.mSecondParam.push_back(addName);
+    command.mSecondParam.push_back(g_nStringIdIN1);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: ADD.OUT -> UINT2UINT_3.IN");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(addName);
-    command.mFirstParam.pushBack(g_nStringIdOUT);
+    command.mFirstParam.push_back(addName);
+    command.mFirstParam.push_back(g_nStringIdOUT);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(uint2uintThird);
-    command.mSecondParam.pushBack(g_nStringIdIN);
+    command.mSecondParam.push_back(uint2uintThird);
+    command.mSecondParam.push_back(g_nStringIdIN);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: SUBSCRIBE.RD_1 -> UINT2UINT_1.IN");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(subscribeName);
-    command.mFirstParam.pushBack(g_nStringIdRD_1);
+    command.mFirstParam.push_back(subscribeName);
+    command.mFirstParam.push_back(g_nStringIdRD_1);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(uint2uintFirst);
-    command.mSecondParam.pushBack(g_nStringIdIN);
+    command.mSecondParam.push_back(uint2uintFirst);
+    command.mSecondParam.push_back(g_nStringIdIN);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: UINT2UINT_1.OUT -> MUL.IN2");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(uint2uintFirst);
-    command.mFirstParam.pushBack(g_nStringIdOUT);
+    command.mFirstParam.push_back(uint2uintFirst);
+    command.mFirstParam.push_back(g_nStringIdOUT);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(mulName);
-    command.mSecondParam.pushBack(g_nStringIdIN2);
+    command.mSecondParam.push_back(mulName);
+    command.mSecondParam.push_back(g_nStringIdIN2);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: MUL.OUT -> UINT2UINT_2.IN");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(mulName);
-    command.mFirstParam.pushBack(g_nStringIdOUT);
+    command.mFirstParam.push_back(mulName);
+    command.mFirstParam.push_back(g_nStringIdOUT);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(uint2uintSecond);
-    command.mSecondParam.pushBack(g_nStringIdIN);
+    command.mSecondParam.push_back(uint2uintSecond);
+    command.mSecondParam.push_back(g_nStringIdIN);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Event connection: UINT2UINT_2.OUT -> ADD.IN2");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(uint2uintSecond);
-    command.mFirstParam.pushBack(g_nStringIdOUT);
+    command.mFirstParam.push_back(uint2uintSecond);
+    command.mFirstParam.push_back(g_nStringIdOUT);
     command.mSecondParam.clear();
-    command.mSecondParam.pushBack(addName);
-    command.mSecondParam.pushBack(g_nStringIdIN2);
+    command.mSecondParam.push_back(addName);
+    command.mSecondParam.push_back(g_nStringIdIN2);
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     // Literals
@@ -610,38 +610,38 @@ std::unique_ptr<CDevice> createNonDeterministicExample(CStringDictionary::TStrin
 
     BOOST_TEST_INFO("Literal: Cycle.DT -> T#200ms");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(cycleName);
-    command.mFirstParam.pushBack(g_nStringIdDT);
+    command.mFirstParam.push_back(cycleName);
+    command.mFirstParam.push_back(g_nStringIdDT);
     command.mAdditionalParams = "T#200ms";
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Literal: CTU.PV -> 0");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(ctuName);
-    command.mFirstParam.pushBack(g_nStringIdPV);
+    command.mFirstParam.push_back(ctuName);
+    command.mFirstParam.push_back(g_nStringIdPV);
     command.mAdditionalParams = "0";
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
 
     BOOST_TEST_INFO("Literal: SUBSCRIBE.QI -> TRUE");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(subscribeName);
-    command.mFirstParam.pushBack(g_nStringIdQI);
+    command.mFirstParam.push_back(subscribeName);
+    command.mFirstParam.push_back(g_nStringIdQI);
     command.mAdditionalParams = "TRUE";
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
 
     BOOST_TEST_INFO("Literal: Pulbish.ID -> 239.0.0.1:61000");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(subscribeName);
-    command.mFirstParam.pushBack(g_nStringIdID);
+    command.mFirstParam.push_back(subscribeName);
+    command.mFirstParam.push_back(g_nStringIdID);
     command.mAdditionalParams = "239.0.0.1:61000";
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
 
     BOOST_TEST_INFO("Literal: MUL.IN1 -> UINT#10");
     command.mFirstParam.clear();
-    command.mFirstParam.pushBack(mulName);
-    command.mFirstParam.pushBack(g_nStringIdIN1);
+    command.mFirstParam.push_back(mulName);
+    command.mFirstParam.push_back(g_nStringIdIN1);
     command.mAdditionalParams = "UINT#10";
     BOOST_ASSERT(EMGMResponse::Ready == resource->executeMGMCommand(command));
   }
