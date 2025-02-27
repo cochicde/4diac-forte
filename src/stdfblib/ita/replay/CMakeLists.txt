@@ -17,6 +17,7 @@ if (FORTE_COM_OPC_UA)
   set(FORTE_REPLAY_DEVICE FALSE CACHE BOOL "Compile the replay Device")
 
   if (FORTE_REPLAY_DEVICE)
+    forte_add_definition("-DFORTE_REPLAY_DEVICE")
     forte_add_sourcefile_cpp(bt2MessageFactory.cpp)
     forte_add_sourcefile_cpp(TraceReaderSink.cpp)
     forte_add_link_library(babeltrace2)
