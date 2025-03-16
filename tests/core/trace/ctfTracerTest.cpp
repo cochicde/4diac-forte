@@ -220,7 +220,7 @@ BOOST_AUTO_TEST_CASE(reference_systems_test) {
     return createDeviceFromFile(g_nStringIdReferenceSystemDevice, REFERENCE_SYSTEMS_FILE);
   };
 
-  testAlgorithm(createDevice, 3000);
+  testAlgorithm(createDevice, 60000);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
