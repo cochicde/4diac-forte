@@ -697,37 +697,3 @@ size_t CFunctionBlock::getToStringBufferSize() const {
   }
   return bufferSize;
 }
-
-//********************************** below here are CTF Tracing specific functions
-//**********************************************************
-#ifdef FORTE_TRACE_CTF
-void CFunctionBlock::traceInputEvent(TEventID paEIID) {
-  if (auto &tracer = getResource()->getTracer(); tracer.isEnabled()) {
-    tracer.traceReceiveInputEvent(getFBTypeName() ?: "null",
-                                  getFullQualifiedApplicationInstanceName('.').c_str() ?: "null",
-                                  static_cast<uint64_t>(paEIID));
-    traceInstanceData();
-  }
-}
-
-void CFunctionBlock::traceReadData(TPortId paDINum, CIEC_ANY &paValue) {
-  if (auto &tracer = getResource()->getTracer(); tracer.isEnabled()) {
-    std::string valueString;
-    valueString.reserve(paValue.getToStringBufferSize());
-    paValue.toString(valueString.data(), valueString.capacity());
-    tracer.traceInputData(getFBTypeName() ?: "null", getFullQualifiedApplicationInstanceName('.').c_str() ?: "null",
-                          static_cast<uint64_t>(paDINum), valueString.c_str());
-  }
-}
-
-void CFunctionBlock::traceWriteData(TPortId paDONum, CIEC_ANY &paValue) {
-  if (auto &tracer = getResource()->getTracer(); tracer.isEnabled()) {
-    std::string valueString;
-    valueString.reserve(paValue.getToStringBufferSize());
-    paValue.toString(valueString.data(), valueString.capacity());
-    tracer.traceOutputData(getFBTypeName() ?: "null", getFullQualifiedApplicationInstanceName('.').c_str() ?: "null",
-                           static_cast<uint64_t>(paDONum), valueString.c_str());
-  }
-}
-
-#endif

@@ -325,9 +325,6 @@ class CFunctionBlock : public forte::core::CFBContainer {
       FORTE_TRACE("InputEvent: Function Block (%s) got event: %d (maxid: %d)\n",
                   CStringDictionary::get(getInstanceNameId()), paEIID, getFBInterfaceSpec().mNumEIs - 1);
 
-#ifdef FORTE_TRACE_CTF
-      traceInputEvent(paEIID);
-#endif // FORTE_TRACE_CTF
       if (E_FBStates::Running == getState()) {
         if (paEIID < getFBInterfaceSpec().mNumEIs) {
           readInputData(paEIID);
@@ -455,11 +452,6 @@ class CFunctionBlock : public forte::core::CFBContainer {
 
     virtual size_t getToStringBufferSize() const;
 
-#ifdef FORTE_TRACE_CTF
-    virtual void traceInstanceData() {
-    }
-#endif // FORTE_TRACE_CTF
-
     void addInputEventConnection(TEventID paEIID) {
       if (getFBInterfaceSpec().mEITypeNames != nullptr) {
         mInputEventConnectionCount[paEIID]++;
@@ -546,9 +538,6 @@ class CFunctionBlock : public forte::core::CFBContainer {
 #ifdef FORTE_SUPPORT_MONITORING
       }
 #endif // FORTE_SUPPORT_MONITORING
-#ifdef FORTE_TRACE_CTF
-      traceReadData(paDINum, paValue);
-#endif // FORTE_TRACE_CTF
     }
 
     /*!\brief Function to write data to an output connection from a variable of the FB.
@@ -569,9 +558,6 @@ class CFunctionBlock : public forte::core::CFBContainer {
         paConn.readData(paValue);
       }
 #endif // FORTE_SUPPORT_MONITORING
-#ifdef FORTE_TRACE_CTF
-      traceWriteData(paDONum, paValue);
-#endif // FORTE_TRACE_CTF
     }
 
     /*!\brief Set the initial values of data inputs, outputs, and internal vars.
@@ -731,10 +717,7 @@ class CFunctionBlock : public forte::core::CFBContainer {
 #endif
 
 #ifdef FORTE_TRACE_CTF
-    void traceInputEvent(TEventID paEIID);
-    void traceOutputEvent(TEventID paEOID, CEventChainExecutionThread *const paECET);
-    void traceReadData(TPortId paDINum, CIEC_ANY &paValue);
-    void traceWriteData(TPortId paDONum, CIEC_ANY &paValue);
+    virtual void traceOutputEvent(TEventID paEOID, CEventChainExecutionThread *const paECET);
 #endif
 
     /*!\brief Current state of the runnable object.

@@ -44,20 +44,6 @@ class CFlexibleTracer final {
     CFlexibleTracer(CFlexibleTracer &&) = delete;
     CFlexibleTracer &operator=(CFlexibleTracer &&) = delete;
 
-    void traceInstanceData(const char *const paTypeName,
-                           const char *const paInstanceName,
-                           const uint32_t paInputsLength,
-                           const char *const *const paInputs,
-                           const uint32_t paOutputsLength,
-                           const char *const *const paOutputs,
-                           const uint32_t paInternalLength,
-                           const char *const *const paInternal,
-                           const uint32_t paInternalFBsLength,
-                           const char *const *const paInternalFBs);
-
-    void
-    traceReceiveInputEvent(const char *const paTypeName, const char *const paInstanceName, const uint64_t paEventId);
-
     void traceSendOutputEvent(const char *const paTypeName,
                               const char *const paInstanceName,
                               const uint64_t paEventId
@@ -68,16 +54,6 @@ class CFlexibleTracer final {
                               const char *const *const paOutputs
 #endif // FORTE_TRACE_CTF_REPLAY_DEBUGGING
     );
-
-    void traceInputData(const char *const paTypeName,
-                        const char *const paInstanceName,
-                        const uint64_t paDataId,
-                        const char *const paValue);
-
-    void traceOutputData(const char *const paTypeName,
-                         const char *const paInstanceName,
-                         const uint64_t paDataId,
-                         const char *const paValue);
 
     bool isEnabled();
 

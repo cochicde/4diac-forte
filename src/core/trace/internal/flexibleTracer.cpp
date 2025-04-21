@@ -30,41 +30,6 @@ CFlexibleTracer::CFlexibleTracer(CStringDictionary::TStringId instanceName, size
   }
 }
 
-void CFlexibleTracer::traceInstanceData(const char *const paTypeName,
-                                        const char *const paInstanceName,
-                                        const uint32_t paInputsLength,
-                                        const char *const *const paInputs,
-                                        const uint32_t paOutputsLength,
-                                        const char *const *const paOutputs,
-                                        const uint32_t paInternalLength,
-                                        const char *const *const paInternal,
-                                        const uint32_t paInternalFBsLength,
-                                        const char *const *const paInternalFBs) {
-
-  std::visit(
-      [&](auto &&paTracer) {
-        using T = std::decay_t<decltype(paTracer)>;
-        if constexpr (std::is_same_v<T, std::monostate> == false) {
-          paTracer.traceInstanceData(paTypeName, paInstanceName, paInputsLength, paInputs, paOutputsLength, paOutputs,
-                                     paInternalLength, paInternal, paInternalFBsLength, paInternalFBs);
-        }
-      },
-      mTracer);
-}
-
-void CFlexibleTracer::traceReceiveInputEvent(const char *const paTypeName,
-                                             const char *const paInstanceName,
-                                             const uint64_t paEventId) {
-  std::visit(
-      [&](auto &&paTracer) {
-        using T = std::decay_t<decltype(paTracer)>;
-        if constexpr (std::is_same_v<T, std::monostate> == false) {
-          paTracer.traceReceiveInputEvent(paTypeName, paInstanceName, paEventId);
-        }
-      },
-      mTracer);
-}
-
 void CFlexibleTracer::traceSendOutputEvent(const char *const paTypeName,
                                            const char *const paInstanceName,
                                            const uint64_t paEventId
@@ -85,36 +50,6 @@ void CFlexibleTracer::traceSendOutputEvent(const char *const paTypeName,
                                         paEventCounter, paOutputsLength, paOutputs
 #endif // FORTE_TRACE_CTF_REPLAY_DEBUGGING
           );
-        }
-      },
-      mTracer);
-}
-
-void CFlexibleTracer::traceInputData(const char *const paTypeName,
-                                     const char *const paInstanceName,
-                                     const uint64_t paDataId,
-                                     const char *const paValue) {
-
-  std::visit(
-      [&](auto &&paTracer) {
-        using T = std::decay_t<decltype(paTracer)>;
-        if constexpr (std::is_same_v<T, std::monostate> == false) {
-          paTracer.traceInputData(paTypeName, paInstanceName, paDataId, paValue);
-        }
-      },
-      mTracer);
-}
-
-void CFlexibleTracer::traceOutputData(const char *const paTypeName,
-                                      const char *const paInstanceName,
-                                      const uint64_t paDataId,
-                                      const char *const paValue) {
-
-  std::visit(
-      [&](auto &&paTracer) {
-        using T = std::decay_t<decltype(paTracer)>;
-        if constexpr (std::is_same_v<T, std::monostate> == false) {
-          paTracer.traceOutputData(paTypeName, paInstanceName, paDataId, paValue);
         }
       },
       mTracer);

@@ -110,7 +110,9 @@ class CCompositeFB : public CFunctionBlock {
     CIEC_ANY *getVar(CStringDictionary::TStringId *paNameList, unsigned int paNameListSize) override;
 
     EMGMResponse changeExecutionState(EMGMCommandType paCommand) override;
-
+#ifdef FORTE_TRACE_CTF
+    void traceOutputEvent(TEventID, CEventChainExecutionThread *const) override{};
+#endif
   protected:
     const SCFB_FBNData &getFBNData() const {
       return cmFBNData;

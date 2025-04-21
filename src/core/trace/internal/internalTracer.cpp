@@ -19,41 +19,6 @@
 CInternalTracer::CInternalTracer(CStringDictionary::TStringId, size_t) {
 }
 
-void CInternalTracer::traceInstanceData(const char *const paTypeName,
-                                        const char *const paInstanceName,
-                                        const uint32_t paInputsLength,
-                                        const char *const *const paInputs,
-                                        const uint32_t paOutputsLength,
-                                        const char *const *const paOutputs,
-                                        const uint32_t paInternalLength,
-                                        const char *const *const paInternal,
-                                        const uint32_t paInternalFBsLength,
-                                        const char *const *const paInternalFBs) {
-
-  std::vector<std::string> inputs(paInputsLength);
-  std::vector<std::string> outputs(paOutputsLength);
-  std::vector<std::string> internal(paInternalLength);
-  std::vector<std::string> internalFBs(paInternalFBsLength);
-
-  fillStringsVector(paInputs, paInputsLength, inputs);
-  fillStringsVector(paOutputs, paOutputsLength, outputs);
-  fillStringsVector(paInternal, paInternalLength, internal);
-  fillStringsVector(paInternalFBs, paInternalFBsLength, internalFBs);
-
-  mEvents.emplace_back(
-      "instanceData",
-      std::make_unique<FBInstanceDataPayload>(paTypeName, paInstanceName, inputs, outputs, internal, internalFBs),
-      getNanoSecondsMonotonic());
-}
-
-void CInternalTracer::traceReceiveInputEvent(const char *const paTypeName,
-                                             const char *const paInstanceName,
-                                             const uint64_t paEventId) {
-  mEvents.emplace_back("receiveInputEvent",
-                       std::make_unique<FBInputEventPayload>(paTypeName, paInstanceName, paEventId),
-                       getNanoSecondsMonotonic());
-}
-
 void CInternalTracer::traceSendOutputEvent(const char *const paTypeName,
                                            const char *const paInstanceName,
                                            const uint64_t paEventId
@@ -77,23 +42,6 @@ void CInternalTracer::traceSendOutputEvent(const char *const paTypeName,
   mEvents.emplace_back("sendOutputEvent", std::make_unique<FBOutputEventPayload>(paTypeName, paInstanceName, paEventId),
                        getNanoSecondsMonotonic());
 #endif // FORTE_TRACE_CTF_REPLAY_DEBUGGING
-}
-
-void CInternalTracer::traceInputData(const char *const paTypeName,
-                                     const char *const paInstanceName,
-                                     const uint64_t paDataId,
-                                     const char *const paValue) {
-
-  mEvents.emplace_back("inputData", std::make_unique<FBDataPayload>(paTypeName, paInstanceName, paDataId, paValue),
-                       getNanoSecondsMonotonic());
-}
-
-void CInternalTracer::traceOutputData(const char *const paTypeName,
-                                      const char *const paInstanceName,
-                                      const uint64_t paDataId,
-                                      const char *const paValue) {
-  mEvents.emplace_back("outputData", std::make_unique<FBDataPayload>(paTypeName, paInstanceName, paDataId, paValue),
-                       getNanoSecondsMonotonic());
 }
 
 bool CInternalTracer::isEnabled() {

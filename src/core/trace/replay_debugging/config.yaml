@@ -46,14 +46,6 @@ trace:
 
         # Event record types
         event-record-types:
-          # receiveInputEvent()
-          receiveInputEvent:
-            payload-field-type:
-              class: structure
-              members:
-                - typeName: string # FB type name
-                - instanceName: string # FB instance name
-                - eventId: uint64 # Event id
           # sendOutputEvent()
           sendOutputEvent:
             payload-field-type:
@@ -64,51 +56,6 @@ trace:
                 - eventId: uint64 # Event id
                 - eventCounter: uint64 # event counter of the execution
                 - outputs: # Data values
-                    field-type:
-                      class: dynamic-array
-                      element-field-type:
-                        class: string
-          # inputData
-          inputData:
-            payload-field-type:
-              class: structure
-              members:
-                - typeName: string # FB type name
-                - instanceName: string # FB instance name
-                - dataId: uint64 # Data id
-                - value: string # Data value
-          # outputData
-          outputData:
-            payload-field-type:
-              class: structure
-              members:
-                - typeName: string # FB type name
-                - instanceName: string # FB instance name
-                - dataId: uint64 # Data id
-                - value: string # Data value
-          # instanceData
-          instanceData:
-            payload-field-type:
-              class: structure
-              members:
-                - typeName: string # FB type name
-                - instanceName: string # FB instance name
-                - inputs: # Data values
-                    field-type:
-                      class: dynamic-array
-                      element-field-type:
-                        class: string
-                - outputs: # Data values
-                    field-type:
-                      class: dynamic-array
-                      element-field-type:
-                        class: string
-                - internal: # Data values
-                    field-type:
-                      class: dynamic-array
-                      element-field-type:
-                        class: string
-                - internalFB: # Internal FB 
                     field-type:
                       class: dynamic-array
                       element-field-type:
