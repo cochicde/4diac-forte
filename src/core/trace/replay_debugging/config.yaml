@@ -51,13 +51,11 @@ trace:
             payload-field-type:
               class: structure
               members:
-                - typeName: uint64 # FB type name
                 - instanceName:
                     field-type:
                       class: dynamic-array
                       element-field-type: uint64
                 - eventId: uint64 # Event id
-                - eventCounter: uint64 # event counter of the execution
                 - outputs: # Data values
                     field-type:
                       class: dynamic-array

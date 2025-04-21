@@ -48,8 +48,9 @@ void BarectfPlatformFORTE::setup(std::string directory) {
   }
 }
 
-uint64_t BarectfPlatformFORTE::getClock(void *const) {
-  return getNanoSecondsMonotonic();
+uint64_t BarectfPlatformFORTE::getClock(void *const data) {
+  BarectfPlatformFORTE *platform = static_cast<BarectfPlatformFORTE *>(data);
+  return platform->mCurrentClock;
 }
 
 int BarectfPlatformFORTE::isBackendFull(void *data) {

@@ -11,7 +11,7 @@ void CFunctionBlock::traceOutputEvent(TEventID paEOID, CEventChainExecutionThrea
     }
 
     auto size = getFBInterfaceSpec().mNumDOs;
-    auto bufferSizeNeeded = 0;
+    size_t bufferSizeNeeded = 0;
     for (size_t i = 0; i < size; ++i) {
       bufferSizeNeeded += forte::com_infra::CFBDKASN1ComLayer::getRequiredSerializationSize(*getDO(i));
     }
@@ -32,7 +32,7 @@ void CFunctionBlock::traceOutputEvent(TEventID paEOID, CEventChainExecutionThrea
       }
     }
 
-    tracer.traceSendOutputEvent(static_cast<uint64_t>(getFBTypeId()), mInstanceName.size(), mInstanceName.data(),
+    tracer.traceSendOutputEvent(static_cast<uint32_t>(mInstanceName.size()), mInstanceName.data(),
                                 static_cast<uint64_t>(paEOID), paECET->mEventCounter,
                                 static_cast<uint32_t>(outputs.size()), outputs.data());
   }

@@ -41,15 +41,15 @@ class BarectfPlatformFORTE final {
     BarectfPlatformFORTE(BarectfPlatformFORTE &&) = delete;
     BarectfPlatformFORTE &operator=(BarectfPlatformFORTE &&) = delete;
 
-    void traceSendOutputEvent(const uint64_t paTypeName,
-                              const uint32_t paInstanceNameLength,
+    void traceSendOutputEvent(const uint32_t paInstanceNameLength,
                               const uint64_t *paInstanceNames,
                               const uint64_t paEventId,
                               const uint64_t paEventCounter,
                               const uint32_t paOutputsLength,
                               const uint8_t *paOutputs) {
-      barectf_default_trace_sendOutputEvent(&context, paTypeName, paInstanceNameLength, +paInstanceNames, paEventId,
-                                            paEventCounter, paOutputsLength, paOutputs);
+      mCurrentClock = paEventCounter;
+      barectf_default_trace_sendOutputEvent(&context, paInstanceNameLength, paInstanceNames, paEventId, paOutputsLength,
+                                            paOutputs);
     }
 
     bool isEnabled() {
@@ -62,6 +62,7 @@ class BarectfPlatformFORTE final {
     std::ofstream output;
     std::unique_ptr<uint8_t[]> buffer;
     barectf_default_ctx context;
+    uint64_t mCurrentClock{0};
 
     static bool enabled;
     static std::filesystem::path traceDirectory;
