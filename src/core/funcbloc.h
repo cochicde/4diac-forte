@@ -718,7 +718,7 @@ class CFunctionBlock : public forte::core::CFBContainer {
 
 #ifdef FORTE_TRACE_CTF
     virtual void traceOutputEvent(TEventID paEOID, CEventChainExecutionThread *const paECET);
-#endif
+#endif // FORTE_TRACE_CTF
 
     /*!\brief Current state of the runnable object.
      *

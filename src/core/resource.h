@@ -94,6 +94,11 @@ class CResource : public CFunctionBlock {
       // we don't want to add anything here as the resource name should be excluded
     }
 
+    void getFullQualifiedApplicationInstanceNameId(std::vector<CStringDictionary::TStringId> &) const override {
+      // we don't want to add anything here as the resource name should be excluded
+      return;
+    }
+
     CEventChainExecutionThread *getResourceEventExecution() const {
       return mResourceEventExecution;
     };
@@ -171,8 +176,7 @@ class CResource : public CFunctionBlock {
             mInitString(std::move(paInitString)) {
         }
 
-        [[nodiscard]]
-        const std::string &getInitString() const {
+        [[nodiscard]] const std::string &getInitString() const {
           return mInitString;
         }
 

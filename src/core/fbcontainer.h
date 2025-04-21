@@ -112,6 +112,14 @@ namespace forte {
          */
         virtual void getFullQualifiedApplicationInstanceName(TNameIdentifier &paResult) const;
 
+        virtual void
+        getFullQualifiedApplicationInstanceNameId(std::vector<CStringDictionary::TStringId> &paResult) const {
+          if (&mParent != this) {
+            mParent.getFullQualifiedApplicationInstanceNameId(paResult);
+          }
+          paResult.push_back(mContInstanceName);
+        }
+
         //! Change the execution state of all contained FBs and also recursively in all contained containers
         virtual EMGMResponse changeExecutionState(EMGMCommandType paCommand);
 

@@ -156,6 +156,8 @@ namespace forte {
          */
         enum EASN1EncodingType { e_PRIMITIVE = 0, e_CONSTRUCTED = 32 };
 
+        static size_t getRequiredSerializationSize(const CIEC_ANY &paCIECData);
+
       protected:
       private:
         static const TForteByte scmNull = 5;
@@ -221,8 +223,6 @@ namespace forte {
                                              TForteUInt16 paDecodedArraySize);
         static int deserializeValueStruct(const TForteByte *paBytes, int paStreamSize, CIEC_STRUCT &paIECData);
         /**@}*/
-
-        static size_t getRequiredSerializationSize(const CIEC_ANY &paCIECData);
 
         EComResponse openConnection(char *paLayerParameter) override;
         void closeConnection() override;
