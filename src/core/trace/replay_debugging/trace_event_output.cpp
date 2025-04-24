@@ -29,8 +29,6 @@ void CFunctionBlock::traceOutputEvent(TEventID paEOID, CEventChainExecutionThrea
       }
     }
 
-    tracer.traceSendOutputEvent(static_cast<uint32_t>(mInstanceName.size()), mInstanceName.data(),
-                                static_cast<uint64_t>(paEOID), paECET->mEventCounter,
-                                static_cast<uint32_t>(mOutputs.size()), mOutputs.data());
+    tracer.traceSendOutputEvent2(mInstanceName, static_cast<uint64_t>(paEOID), paECET->mEventCounter, mOutputs);
   }
 }

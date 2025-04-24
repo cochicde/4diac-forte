@@ -15,10 +15,158 @@
 
 #include "barectf_platform_forte.h"
 
-#include <iomanip>
 #include <chrono>
+#include <future>
+#include <iomanip>
+#include <iostream>
+#include <mutex>
+#include <queue>
+#include <vector>
 
 #include "forte_architecture_time.h"
+#include <forte_sem.h>
+
+// #include "atomic_queue.h"
+
+class TraceCPP {
+  public:
+    uint64_t mEventId;
+    uint64_t mEventCounter;
+    std::vector<uint64_t> mInstanceNames;
+    std::vector<uint8_t> mOutputs;
+};
+class AsyncWorker {
+  public:
+    AsyncWorker(BarectfPlatformFORTE &paTracer) : mTracer{paTracer} {
+      mFuture = std::async(std::launch::async, &AsyncWorker::process, this);
+      resetBuffer(mBuffer);
+      resetBuffer(mIncommingPackets);
+      resetBuffer(mToProcess);
+      mThreadStartSignal.get_future().wait();
+    }
+
+    void resetBuffer(std::vector<TraceCPP> &paBuffer) {
+      paBuffer = std::vector<TraceCPP>(bufferSize);
+      for (size_t i = 0; i < bufferSize; i++) {
+        paBuffer[i].mInstanceNames.reserve(20);
+        paBuffer[i].mOutputs.reserve(1000);
+      }
+    }
+
+    uint64_t getClock() {
+      return mCurrentClock;
+    }
+
+    ~AsyncWorker() {
+      mAlive = false;
+      mNewDataAvailable = true;
+      {
+        std::lock_guard guard(mMutex);
+        std::swap(mIncommingPackets, mBuffer);
+        mAddedTracesBuffer = mAddedTraces;
+        mNewDataAvailable = true;
+        mNewDataSignal.notify_one();
+      }
+      mFuture.wait();
+    }
+
+    void addTrace(const std::vector<uint64_t> &paInstanceNames,
+                  const uint64_t paEventId,
+                  const uint64_t paEventCounter,
+                  const std::vector<uint8_t> &paOutputs) {
+      mBuffer[mAddedTraces++] = TraceCPP(paEventId, paEventCounter, paInstanceNames, paOutputs);
+      if (mAddedTraces == bufferSize) {
+
+        std::lock_guard guard(mMutex);
+        std::swap(mIncommingPackets, mBuffer);
+        mAddedTracesBuffer = mAddedTraces;
+        mNewDataAvailable = true;
+        mNewDataSignal.notify_one();
+        mAddedTraces = 0;
+      }
+    }
+    void process() {
+      mThreadStartSignal.set_value();
+      while (mAlive) {
+        {
+          std::unique_lock lock(mMutex);
+          mNewDataSignal.wait(lock, [this] { return mNewDataAvailable; });
+
+          std::swap(mToProcess, mIncommingPackets);
+          mNewDataAvailable = false;
+        }
+
+        for (size_t i = 0; i < mAddedTracesBuffer; i++) {
+          mCurrentClock = mToProcess[i].mEventCounter;
+          mTracer.traceSendOutputEvent(static_cast<uint32_t>(mToProcess[i].mInstanceNames.size()),
+                                       mToProcess[i].mInstanceNames.data(), mToProcess[i].mEventId,
+                                       static_cast<uint32_t>(mToProcess[i].mOutputs.size()),
+                                       mToProcess[i].mOutputs.data());
+        }
+      }
+    }
+
+  private:
+    static constexpr size_t bufferSize = 100000;
+    size_t mAddedTraces{0};
+    size_t mAddedTracesBuffer{0};
+
+    bool mAlive{true};
+    bool mNewDataAvailable{false};
+    uint64_t mCurrentClock{0};
+
+    std::mutex mMutex;
+    std::future<void> mFuture;
+    std::condition_variable mNewDataSignal;
+    forte::arch::CSemaphore mSuspendSemaphore;
+    std::vector<TraceCPP> mIncommingPackets;
+    std::vector<TraceCPP> mToProcess;
+    std::vector<TraceCPP> mBuffer;
+    BarectfPlatformFORTE &mTracer;
+    std::promise<void> mThreadStartSignal;
+};
+
+// class AsyncWorker {
+//   public:
+//     AsyncWorker(BarectfPlatformFORTE &paTracer) : mTracer{paTracer} {
+//       mFuture = std::async(std::launch::async, &AsyncWorker::process, this);
+//       mThreadStartSignal.get_future().wait();
+//     }
+//     ~AsyncWorker() {
+//       mAlive = false;
+//       addTrace({}, 0, 0, {}); // add dummy
+//       mFuture.wait();
+//     }
+//     uint64_t getClock() {
+//       return mCurrentClock;
+//     }
+
+//     void addTrace(const std::vector<uint64_t> &paInstanceNames,
+//                   const uint64_t paEventId,
+//                   const uint64_t paEventCounter,
+//                   const std::vector<uint8_t> &paOutputs) {
+//       mQueue.push(TraceCPP(paEventId, paEventCounter, paInstanceNames, paOutputs));
+//     }
+//     void process() {
+//       mThreadStartSignal.set_value();
+//       while (mAlive) {
+//         auto toTrace = mQueue.pop();
+//         mCurrentClock = toTrace.mEventCounter;
+//         mTracer.traceSendOutputEvent(static_cast<uint32_t>(toTrace.mInstanceNames.size()),
+//                                      toTrace.mInstanceNames.data(), toTrace.mEventId,
+//                                      static_cast<uint32_t>(toTrace.mOutputs.size()), toTrace.mOutputs.data());
+//       }
+//     }
+
+//   private:
+//     static constexpr size_t bufferSize = 1000;
+//     uint64_t mCurrentClock{0};
+//     bool mAlive{true};
+//     std::future<void> mFuture;
+//     BarectfPlatformFORTE &mTracer;
+//     std::promise<void> mThreadStartSignal;
+//     atomic_queue::AtomicQueue2<TraceCPP, bufferSize, false, false, false, true> mQueue;
+// };
 
 std::filesystem::path BarectfPlatformFORTE::traceDirectory = std::filesystem::path();
 bool BarectfPlatformFORTE::enabled = false;
@@ -50,7 +198,7 @@ void BarectfPlatformFORTE::setup(std::string directory) {
 
 uint64_t BarectfPlatformFORTE::getClock(void *const data) {
   BarectfPlatformFORTE *platform = static_cast<BarectfPlatformFORTE *>(data);
-  return platform->mCurrentClock;
+  return platform->mWorker->getClock();
 }
 
 int BarectfPlatformFORTE::isBackendFull(void *data) {
@@ -80,7 +228,8 @@ const struct barectf_platform_callbacks BarectfPlatformFORTE::barectfCallbacks =
                                                                                   .close_packet = closePacket};
 
 BarectfPlatformFORTE::BarectfPlatformFORTE(std::filesystem::path filename, size_t bufferSize) :
-    buffer(enabled ? new uint8_t[bufferSize] : nullptr) {
+    buffer(enabled ? new uint8_t[bufferSize] : nullptr),
+    mWorker(std::make_unique<AsyncWorker>(*this)) {
   if (enabled) {
     output = std::ofstream(filename, std::ios::binary);
     barectf_init(&context, buffer.get(), static_cast<uint32_t>(bufferSize), barectfCallbacks, this);
@@ -118,4 +267,11 @@ std::string BarectfPlatformFORTE::dateCapture() {
   stream << std::put_time(&ptm, "%Y%m%d_%H%M%S");
   stream << std::setfill('0') << std::setw(3) << millisecondsPart;
   return stream.str();
+}
+
+void BarectfPlatformFORTE::traceSendOutputEvent2(const std::vector<uint64_t> &paInstanceNames,
+                                                 const uint64_t paEventId,
+                                                 uint64_t paEventCounter,
+                                                 const std::vector<uint8_t> &paOutputs) {
+  mWorker->addTrace(paInstanceNames, paEventId, paEventCounter, paOutputs);
 }

@@ -19,10 +19,13 @@
 #include <fstream>
 #include <memory>
 #include <filesystem>
+#include <vector>
 
 #include "stringdict.h"
 
 #include "barectf.h"
+
+class AsyncWorker;
 
 /**
  * @brief BareCTF tracer
@@ -41,13 +44,16 @@ class BarectfPlatformFORTE final {
     BarectfPlatformFORTE(BarectfPlatformFORTE &&) = delete;
     BarectfPlatformFORTE &operator=(BarectfPlatformFORTE &&) = delete;
 
+    void traceSendOutputEvent2(const std::vector<uint64_t> &paInstanceNames,
+                               const uint64_t paEventId,
+                               const uint64_t paEventCounter,
+                               const std::vector<uint8_t> &paOutputs);
+
     void traceSendOutputEvent(const uint32_t paInstanceNameLength,
                               const uint64_t *paInstanceNames,
                               const uint64_t paEventId,
-                              const uint64_t paEventCounter,
                               const uint32_t paOutputsLength,
                               const uint8_t *paOutputs) {
-      mCurrentClock = paEventCounter;
       barectf_default_trace_sendOutputEvent(&context, paInstanceNameLength, paInstanceNames, paEventId, paOutputsLength,
                                             paOutputs);
     }
@@ -62,7 +68,6 @@ class BarectfPlatformFORTE final {
     std::ofstream output;
     std::unique_ptr<uint8_t[]> buffer;
     barectf_default_ctx context;
-    uint64_t mCurrentClock{0};
 
     static bool enabled;
     static std::filesystem::path traceDirectory;
@@ -73,6 +78,8 @@ class BarectfPlatformFORTE final {
     static void closePacket(void *data);
     static const struct barectf_platform_callbacks barectfCallbacks;
     static std::string dateCapture();
+
+    std::unique_ptr<AsyncWorker> mWorker;
 };
 
 #endif // BARECTF_PLATFORM_FORTE_H

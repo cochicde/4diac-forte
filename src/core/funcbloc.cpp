@@ -31,6 +31,7 @@ USE_STRING_ID(Event);
 #include "adapter.h"
 #include "adapterconn.h"
 #include "device.h"
+#include "core/cominfra/fbdkasn1layer.h"
 
 #include "forte_array_dynamic.h"
 
