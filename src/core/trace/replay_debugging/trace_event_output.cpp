@@ -10,20 +10,17 @@ void CFunctionBlock::traceOutputEvent(TEventID paEOID, CEventChainExecutionThrea
       return;
     }
 
-    auto size = getFBInterfaceSpec().mNumDOs;
+    const auto size = mInterfaceSpec.mNumDOs;
     size_t bufferSizeNeeded = 0;
     for (size_t i = 0; i < size; ++i) {
       bufferSizeNeeded += forte::com_infra::CFBDKASN1ComLayer::getRequiredSerializationSize(*getDO(i));
     }
 
-    std::vector<CStringDictionary::TStringId> mInstanceName;
-    getFullQualifiedApplicationInstanceNameId(mInstanceName);
-
-    std::vector<uint8_t> outputs(size);
-    auto current = 0;
+    mOutputs.reserve(bufferSizeNeeded);
+    size_t current = 0;
     for (size_t i = 0; i < size; ++i) {
       if (auto result = forte::com_infra::CFBDKASN1ComLayer::serializeDataPoint(
-              &outputs.data()[current], static_cast<int>(bufferSizeNeeded - current), *getDO(i));
+              &mOutputs.data()[current], static_cast<int>(bufferSizeNeeded - current), *getDO(i));
           result == -1) {
         DEVLOG_ERROR("Error serialization trace\n");
         break;
@@ -34,6 +31,6 @@ void CFunctionBlock::traceOutputEvent(TEventID paEOID, CEventChainExecutionThrea
 
     tracer.traceSendOutputEvent(static_cast<uint32_t>(mInstanceName.size()), mInstanceName.data(),
                                 static_cast<uint64_t>(paEOID), paECET->mEventCounter,
-                                static_cast<uint32_t>(outputs.size()), outputs.data());
+                                static_cast<uint32_t>(mOutputs.size()), mOutputs.data());
   }
 }

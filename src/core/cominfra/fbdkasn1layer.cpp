@@ -322,7 +322,7 @@ int CFBDKASN1ComLayer::serializeValue(TForteByte *paBytes, int paStreamSize, con
 
   CIEC_ANY::EDataTypeID eDataType = paCIECData.getDataTypeID();
 
-  if ((CIEC_ANY::e_BOOL < eDataType && eDataType <= CIEC_ANY::e_DATE_AND_TIME) || (CIEC_ANY::e_REAL == eDataType) ||
+  if ((CIEC_ANY::e_BOOL < eDataType && eDataType <= CIEC_ANY::e_LTIME) || (CIEC_ANY::e_REAL == eDataType) ||
       (CIEC_ANY::e_LREAL == eDataType)) {
     // Simple data types except bool can be handled the same way
     nRetVal = serializeValueSimpleDataType(paBytes, paStreamSize, paCIECData);
@@ -416,7 +416,7 @@ int CFBDKASN1ComLayer::serializeValueTime(TForteByte *paBytes, int paStreamSize,
     paBytes[4] = (TForteByte) (timeInMicroSeconds >> 24) & 0xFF;
     paBytes[5] = (TForteByte) (timeInMicroSeconds >> 16) & 0xFF;
     paBytes[6] = (TForteByte) (timeInMicroSeconds >> 8) & 0xFF;
-    paBytes[7] = (TForteByte) (timeInMicroSeconds) & 0xFF;
+    paBytes[7] = (TForteByte) (timeInMicroSeconds) &0xFF;
     nRetVal = 8;
   }
   return nRetVal;

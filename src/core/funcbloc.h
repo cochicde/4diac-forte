@@ -718,6 +718,10 @@ class CFunctionBlock : public forte::core::CFBContainer {
 
 #ifdef FORTE_TRACE_CTF
     virtual void traceOutputEvent(TEventID paEOID, CEventChainExecutionThread *const paECET);
+#ifdef FORTE_TRACE_CTF_REPLAY_DEBUGGING
+    std::vector<CStringDictionary::TStringId> mInstanceName;
+    std::vector<uint8_t> mOutputs;
+#endif // FORTE_TRACE_CTF_REPLAY_DEBUGGING
 #endif // FORTE_TRACE_CTF
 
     /*!\brief Current state of the runnable object.

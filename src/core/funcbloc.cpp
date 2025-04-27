@@ -46,6 +46,10 @@ CFunctionBlock::CFunctionBlock(forte::core::CFBContainer &paContainer,
     mFBState(E_FBStates::Idle), // put the FB in the idle state to avoid a useless reset after creation
     mConnRefCount(0),
     mDeletable(true) {
+#ifdef FORTE_TRACE_CTF_REPLAY_DEBUGGING
+  getFullQualifiedApplicationInstanceNameId(mInstanceName);
+  mOutputs.reserve(1000);
+#endif // FORTE_TRACE_CTF_REPLAY_DEBUGGING
 }
 
 bool CFunctionBlock::initialize() {
